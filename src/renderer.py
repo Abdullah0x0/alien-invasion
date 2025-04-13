@@ -30,6 +30,7 @@ PURPLE = (128, 0, 128)
 GRAY = (150, 150, 150)
 DARK_BLUE = (0, 0, 50)
 LIGHT_BLUE = (100, 100, 255)
+ORANGE = (255, 165, 0)
 
 class RendererProcess:
     def __init__(self, width, height, game_state, player_score, player_health, player_position,
@@ -162,18 +163,47 @@ class RendererProcess:
         pygame.draw.rect(frame4, BLUE, (32, 60, 10, 20))  # New leg position
         frames.append(frame4)
         
-        # Create an additional surfacex for jet flames
-        jet_flame = pygame.Surface((30, 20), pygame.SRCALPHA)
-        points = [(0, 10), (10, 0), (10, 20), (0, 10)]
-        pygame.draw.polygon(jet_flame, YELLOW, points)
-        pygame.draw.polygon(jet_flame, RED, [(5, 10), (10, 5), (10, 15), (5, 10)])
+        # Create jet flame animations - right-facing flame
+        right_flames = []
+        
+        # Base flame
+        flame1 = pygame.Surface((30, 20), pygame.SRCALPHA)
+        points = [(0, 10), (15, 0), (15, 20), (0, 10)]
+        pygame.draw.polygon(flame1, YELLOW, points)
+        pygame.draw.polygon(flame1, RED, [(5, 10), (15, 5), (15, 15), (5, 10)])
+        right_flames.append(flame1)
+        
+        # Animated flame 2 - shorter
+        flame2 = pygame.Surface((25, 18), pygame.SRCALPHA)
+        points = [(0, 9), (12, 2), (12, 16), (0, 9)]
+        pygame.draw.polygon(flame2, YELLOW, points)
+        pygame.draw.polygon(flame2, RED, [(4, 9), (12, 4), (12, 14), (4, 9)])
+        right_flames.append(flame2)
+        
+        # Animated flame 3 - longer
+        flame3 = pygame.Surface((35, 22), pygame.SRCALPHA)
+        points = [(0, 11), (18, 0), (18, 22), (0, 11)]
+        pygame.draw.polygon(flame3, YELLOW, points)
+        pygame.draw.polygon(flame3, ORANGE, [(5, 11), (18, 5), (18, 17), (5, 11)])
+        pygame.draw.polygon(flame3, RED, [(10, 11), (18, 7), (18, 15), (10, 11)])
+        right_flames.append(flame3)
+        
+        # Create left-facing flames by flipping the right ones
+        left_flames = []
+        for flame in right_flames:
+            left_flame = pygame.transform.flip(flame, True, False)
+            left_flames.append(left_flame)
         
         # Add the animation details to the class
         self.player_frames = frames
         self.player_frame_idx = 0
         self.player_anim_delay = 8
         self.player_anim_counter = 0
-        self.player_jet_flame = jet_flame
+        self.player_right_flames = right_flames
+        self.player_left_flames = left_flames
+        self.flame_anim_idx = 0
+        self.flame_anim_delay = 5
+        self.flame_anim_counter = 0
         
         # Return the first frame as the initial sprite
         return frames[0]
@@ -594,6 +624,13 @@ class RendererProcess:
                     self.show_process_info = not self.show_process_info
                     print(f"Process info display: {'ON' if self.show_process_info else 'OFF'}")
                 
+                # Quick quit with Q key
+                if event.key == pygame.K_q:
+                    # Send an exit command to the logic process
+                    self.render_to_logic_queue.put({'type': 'exit_game'})
+                    pygame.quit()
+                    sys.exit()
+                
                 # Check for ESC in game over state to exit directly from renderer too
                 with self.game_state_lock:
                     if self.game_state.value == GameState.GAME_OVER.value and event.key == pygame.K_ESCAPE:
@@ -628,15 +665,6 @@ class RendererProcess:
                 #     if entity_type not in entity_counts:
                 #         entity_counts[entity_type] = 0
                 #     entity_counts[entity_type] += 1
-                
-                # Print enemy count (if any)
-                # if EntityType.ENEMY.value in entity_counts:
-                #     print(f"Received {entity_counts[EntityType.ENEMY.value]} enemies")
-                #     # Debug first enemy position
-                #     for entity in self.entities:
-                #         if entity['type'] == EntityType.ENEMY.value:
-                #             print(f"Enemy at position: ({entity['x']}, {entity['y']})")
-                #             break
         except Exception as e:
             print(f"Error receiving game state: {e}")
     
@@ -682,6 +710,12 @@ class RendererProcess:
         if self.player_anim_counter >= self.player_anim_delay:
             self.player_anim_counter = 0
             self.player_frame_idx = (self.player_frame_idx + 1) % len(self.player_frames)
+        
+        # Update flame animation
+        self.flame_anim_counter += 1
+        if self.flame_anim_counter >= self.flame_anim_delay:
+            self.flame_anim_counter = 0
+            self.flame_anim_idx = (self.flame_anim_idx + 1) % len(self.player_right_flames)
         
         # Update enemy animations
         self.enemy1_anim_counter += 1
@@ -781,18 +815,82 @@ class RendererProcess:
             height = entity['height']
             
             if entity_type == EntityType.PLAYER.value:
-                # Draw current animation frame
+                # Get player velocity from the game logic - we need to see if it's there
+                player_velocity_x = entity.get('velocity_x', 0)
+                
+                # Make sure we're using the correct data from game logic
+                facing_right = entity.get('facing_right', True)
+                
+                # Draw jet flame based on velocity direction (draw flames BEFORE player so they appear behind)
+                if random.random() > 0.1:  # Occasionally skip for flickering
+                    # Choose flame based on current animation frame
+                    flame_index = self.flame_anim_idx
+                    flame_scale = random.uniform(0.9, 1.4)  # Random size for flickering
+                    
+                    # Important: Make sure we check both velocity AND facing direction
+                    # When facing right, flame should be on LEFT side
+                    # When facing left, flame should be on RIGHT side
+                    if facing_right:  # Facing right -> flame on left
+                        # LEFT flame (appears on left side)
+                        flame_surface = self.player_left_flames[flame_index]
+                        flame_width = int(flame_surface.get_width() * flame_scale)
+                        flame_height = int(flame_surface.get_height() * flame_scale)
+                        
+                        # Scale flame
+                        scaled_flame = pygame.transform.scale(flame_surface, (flame_width, flame_height))
+                        
+                        # Position flame on left side of player - move it further away from player
+                        flame_x = x - flame_width - 5
+                        flame_y = y + 30 - (flame_height // 2)
+                        flame_y += random.randint(-2, 2)  # Add slight jitter
+                        
+                        # Draw the flame
+                        self.screen.blit(scaled_flame, (flame_x, flame_y))
+                        
+                        # Add particle effects from flame
+                        if random.random() > 0.5:
+                            particle_x = flame_x + random.randint(0, 5)
+                            particle_y = flame_y + random.randint(0, flame_height)
+                            particle_color = random.choice([YELLOW, ORANGE, RED])
+                            particle_size = random.uniform(1, 3)
+                            particle_lifetime = random.randint(5, 15)
+                            self.projectile_particles.append((
+                                particle_x, particle_y, particle_color, 
+                                particle_size, particle_lifetime, -2, random.uniform(-0.5, 0.5)
+                            ))
+                            
+                    else:  # Facing left -> flame on right
+                        # RIGHT flame (appears on right side)
+                        flame_surface = self.player_right_flames[flame_index]
+                        flame_width = int(flame_surface.get_width() * flame_scale)
+                        flame_height = int(flame_surface.get_height() * flame_scale)
+                        
+                        # Scale flame
+                        scaled_flame = pygame.transform.scale(flame_surface, (flame_width, flame_height))
+                        
+                        # Position flame on right side of player - move it further away from player
+                        flame_x = x + width + 5
+                        flame_y = y + 30 - (flame_height // 2)
+                        flame_y += random.randint(-2, 2)  # Add slight jitter
+                        
+                        # Draw the flame
+                        self.screen.blit(scaled_flame, (flame_x, flame_y))
+                        
+                        # Add particle effects from flame
+                        if random.random() > 0.5:
+                            particle_x = flame_x + flame_width - random.randint(0, 5)
+                            particle_y = flame_y + random.randint(0, flame_height)
+                            particle_color = random.choice([YELLOW, ORANGE, RED])
+                            particle_size = random.uniform(1, 3)
+                            particle_lifetime = random.randint(5, 15)
+                            self.projectile_particles.append((
+                                particle_x, particle_y, particle_color, 
+                                particle_size, particle_lifetime, 2, random.uniform(-0.5, 0.5)
+                            ))
+                
+                # Draw current animation frame of player AFTER flame so player appears in front
                 player_frame = self.player_frames[self.player_frame_idx]
                 self.screen.blit(player_frame, (x, y))
-                
-                # Draw jet flame behind player (with flickering effect)
-                if random.random() > 0.2:  # Occasionally skip for flickering
-                    flame_scale = random.uniform(0.8, 1.2)  # Random size for flickering
-                    flame_surface = pygame.transform.scale(
-                        self.player_jet_flame,
-                        (int(30 * flame_scale), int(20 * flame_scale))
-                    )
-                    self.screen.blit(flame_surface, (x - 25, y + 30))
             
             elif entity_type == EntityType.PLATFORM.value:
                 # We need to stretch the platform sprite to match the size
@@ -939,10 +1037,116 @@ class RendererProcess:
             health_color = RED
         pygame.draw.rect(self.screen, health_color, (20, 100, health_width, 20))
         
-        # Controls reminder
-        controls_text = "CONTROLS: ARROWS=Move  UP=Jump  Z/X=Attack  ESC=Pause  P=Toggle Info"
-        controls_surface = self.small_font.render(controls_text, True, WHITE)
-        self.screen.blit(controls_surface, (20, self.height - 30))
+        # Enhanced Controls Display
+        controls_bg_height = 60
+        controls_bg_width = 750  # Increase width from 650 to 750 to accommodate all controls
+        controls_bg_rect = pygame.Rect(
+            (self.width - controls_bg_width) // 2,
+            self.height - controls_bg_height - 10,
+            controls_bg_width,
+            controls_bg_height
+        )
+        
+        # Semi-transparent background with border
+        controls_bg_surface = pygame.Surface((controls_bg_width, controls_bg_height), pygame.SRCALPHA)
+        controls_bg_surface.fill((0, 10, 30, 180))  # Dark blue with transparency
+        pygame.draw.rect(controls_bg_surface, (100, 150, 255, 255), (0, 0, controls_bg_width, controls_bg_height), 2, border_radius=10)
+        
+        # Add a highlight at the top
+        for i in range(5):
+            alpha = 50 - i * 10
+            pygame.draw.rect(controls_bg_surface, (150, 200, 255, alpha), 
+                            (3, 3 + i, controls_bg_width - 6, 1), 0, border_radius=10)
+        
+        self.screen.blit(controls_bg_surface, controls_bg_rect)
+        
+        # Control Key Visualization
+        key_size = 30
+        key_margin = 8
+        key_y = self.height - controls_bg_height + 15
+        
+        # Helper function to draw a key
+        def draw_key(text, x_pos, color=LIGHT_BLUE, width=None):
+            if width is None:
+                width = key_size
+            
+            # Key background with gradient
+            key_surf = pygame.Surface((width, key_size), pygame.SRCALPHA)
+            for y in range(key_size):
+                alpha = 200 - int(y * 3)
+                pygame.draw.line(key_surf, (*color[:3], alpha), (0, y), (width, y))
+            
+            # Key border
+            pygame.draw.rect(key_surf, (*color[:3], 255), (0, 0, width, key_size), 2, border_radius=4)
+            
+            # Key text
+            text_surf = self.small_font.render(text, True, WHITE)
+            key_surf.blit(text_surf, ((width - text_surf.get_width()) // 2, (key_size - text_surf.get_height()) // 2))
+            
+            # Add a highlight
+            pygame.draw.line(key_surf, (255, 255, 255, 100), (3, 3), (width - 3, 3), 1)
+            
+            self.screen.blit(key_surf, (x_pos, key_y))
+            return x_pos + width + key_margin
+        
+        # Draw the arrow keys
+        start_x = controls_bg_rect.x + 20
+        
+        # Left Arrow
+        left_x = start_x
+        start_x = draw_key("←", start_x)
+        
+        # Up Arrow
+        up_x = start_x
+        start_x = draw_key("↑", start_x)
+        
+        # Right Arrow 
+        right_x = start_x
+        start_x = draw_key("→", start_x)
+        
+        # Movement Text
+        move_x = start_x + 5
+        move_text = self.small_font.render("Move/Jump", True, WHITE)
+        self.screen.blit(move_text, (move_x, key_y + 7))
+        start_x = move_x + move_text.get_width() + 20
+        
+        # Attack Keys
+        z_x = start_x
+        start_x = draw_key("Z", start_x, color=RED)
+        x_x = start_x
+        start_x = draw_key("X", start_x, color=RED)
+        
+        # Attack Text
+        attack_x = start_x + 5
+        attack_text = self.small_font.render("Attack", True, WHITE)
+        self.screen.blit(attack_text, (attack_x, key_y + 7))
+        start_x = attack_x + attack_text.get_width() + 20
+        
+        # ESC Key
+        esc_x = start_x
+        start_x = draw_key("ESC", start_x, color=YELLOW, width=45)
+        
+        # ESC Text
+        esc_text = self.small_font.render("Pause", True, WHITE)
+        self.screen.blit(esc_text, (start_x + 5, key_y + 7))
+        start_x = start_x + esc_text.get_width() + 15
+        
+        # P Key for process info
+        p_x = start_x
+        start_x = draw_key("P", start_x, color=PURPLE)
+        
+        # P Text
+        p_text = self.small_font.render("Info", True, WHITE)
+        self.screen.blit(p_text, (start_x + 5, key_y + 7))
+        start_x = start_x + p_text.get_width() + 15
+        
+        # Q Key for quitting
+        q_x = start_x
+        start_x = draw_key("Q", start_x, color=RED)
+        
+        # Q Text
+        q_text = self.small_font.render("Quit", True, WHITE)
+        self.screen.blit(q_text, (start_x + 5, key_y + 7))
         
         # If paused, show pause icon
         if current_state == GameState.PAUSED.value:
@@ -975,27 +1179,68 @@ class RendererProcess:
             avg_frame_time = sum(self.frame_times) / len(self.frame_times)
             current_fps = 1.0 / max(avg_frame_time, 0.0001)  # Avoid division by zero
             
-            # Background for process info
-            info_bg_rect = pygame.Rect(self.width - 300, 60, 280, 180)
-            pygame.draw.rect(self.screen, (0, 0, 0, 150), info_bg_rect)
-            pygame.draw.rect(self.screen, GRAY, info_bg_rect, 1)
+            # Background for process info with improved styling
+            info_width = 350  # Increase width to prevent text overlap
+            info_height = 270  # Increase height to accommodate taller rows
+            info_bg_rect = pygame.Rect(self.width - info_width - 20, 60, info_width, info_height)
             
-            # Display info
-            y_offset = 70
-            info_texts = [
-                f"FPS: {current_fps:.1f}",
-                f"Frame Time: {avg_frame_time*1000:.1f} ms",
-                f"Entities: {len(self.entities)}",
-                f"Particles: {len(self.projectile_particles) + len(self.explosion_particles)}",
-                f"Render Queue: {self.logic_to_render_queue.qsize()}"
+            # Semi-transparent panel with gradient
+            info_surface = pygame.Surface((info_width, info_height), pygame.SRCALPHA)
+            for y in range(info_height):
+                alpha = min(180, 160 + int(y * 0.1))
+                pygame.draw.line(info_surface, (0, 10, 30, alpha), (0, y), (info_width, y))
+            
+            # Panel border with glow
+            pygame.draw.rect(info_surface, (100, 150, 255, 255), (0, 0, info_width, info_height), 2, border_radius=8)
+            
+            # Title bar for process info
+            pygame.draw.rect(info_surface, (80, 120, 220, 200), (2, 2, info_width-4, 26), border_radius=6)
+            title_text = "SYSTEM METRICS"
+            title_surf = self.small_font.render(title_text, True, WHITE)
+            info_surface.blit(title_surf, ((info_width - title_surf.get_width()) // 2, 6))
+            
+            self.screen.blit(info_surface, info_bg_rect)
+            
+            # Display info with improved styling and spacing
+            y_offset = info_bg_rect.y + 36
+            
+            # Draw table-like headers with color coding
+            header_colors = [LIGHT_BLUE, GREEN]
+            label_column_width = 150  # Increase label column width
+            value_column_width = 180  # Increase value column width
+            
+            # Column headers
+            header_height = 26
+            pygame.draw.rect(self.screen, (40, 60, 100, 180), 
+                           (info_bg_rect.x + 10, y_offset - 2, info_width - 20, header_height))
+            
+            metric_header = self.small_font.render("Metric", True, header_colors[0])
+            value_header = self.small_font.render("Value", True, header_colors[1])
+            
+            # Calculate vertical centers for headers
+            metric_y = y_offset + (header_height - metric_header.get_height()) // 2 - 2
+            value_y = y_offset + (header_height - value_header.get_height()) // 2 - 2
+            
+            self.screen.blit(metric_header, (info_bg_rect.x + 20, metric_y))
+            self.screen.blit(value_header, (info_bg_rect.x + label_column_width + 20, value_y))
+            
+            y_offset += header_height
+            
+            # Add separator line between header and data rows
+            pygame.draw.line(self.screen, GRAY, 
+                            (info_bg_rect.x + 10, y_offset - 1), 
+                            (info_bg_rect.x + info_width - 10, y_offset - 1))
+            
+            # Metrics data in two columns
+            metrics = [
+                ("FPS", f"{current_fps:.1f}"),
+                ("Frame Time", f"{avg_frame_time*1000:.1f} ms"),
+                ("Entities", f"{len(self.entities)}"),
+                ("Particles", f"{len(self.projectile_particles) + len(self.explosion_particles)}"),
+                ("Queue Size", f"{self.logic_to_render_queue.qsize()}")
             ]
             
-            for info in info_texts:
-                info_surface = self.small_font.render(info, True, WHITE)
-                self.screen.blit(info_surface, (self.width - 290, y_offset))
-                y_offset += 25
-            
-            # Memory info (if available)
+            # System metrics if available
             try:
                 import psutil
                 process = psutil.Process()
@@ -1003,19 +1248,49 @@ class RendererProcess:
                 memory_mb = memory_info.rss / 1024 / 1024
                 cpu_percent = process.cpu_percent(interval=None) / psutil.cpu_count()
                 
-                memory_text = f"Memory: {memory_mb:.1f} MB"
-                cpu_text = f"CPU: {cpu_percent:.1f}%"
-                
-                mem_surface = self.small_font.render(memory_text, True, WHITE)
-                cpu_surface = self.small_font.render(cpu_text, True, WHITE)
-                
-                self.screen.blit(mem_surface, (self.width - 290, y_offset))
-                y_offset += 25
-                self.screen.blit(cpu_surface, (self.width - 290, y_offset))
+                metrics.extend([
+                    ("Memory", f"{memory_mb:.1f} MB"),
+                    ("CPU Usage", f"{cpu_percent:.1f}%")
+                ])
             except (ImportError, AttributeError):
-                # psutil not available or error accessing metrics
-                no_metrics = self.small_font.render("System metrics unavailable", True, GRAY)
-                self.screen.blit(no_metrics, (self.width - 290, y_offset))
+                metrics.append(("Status", "No system metrics"))
+            
+            # Draw metrics with alternating row colors and proper spacing
+            row_height = 32  # Further increase row height for better text visibility
+            for i, (label, value) in enumerate(metrics):
+                # Alternating row background
+                row_color = (30, 40, 60, 100) if i % 2 == 0 else (20, 30, 50, 100)
+                pygame.draw.rect(self.screen, row_color, 
+                                (info_bg_rect.x + 10, y_offset, info_width - 20, row_height))
+                
+                # Label - left-aligned with proper truncation if needed
+                label_surf = self.small_font.render(label, True, LIGHT_BLUE)
+                # Calculate vertical center position for text
+                label_y = y_offset + (row_height - label_surf.get_height()) // 2
+                self.screen.blit(label_surf, (info_bg_rect.x + 20, label_y))
+                
+                # Value - ensure it fits within the available space
+                # Calculate max allowed width for the value
+                max_value_width = info_width - label_column_width - 40
+                
+                # Render and check if it's too long
+                value_surf = self.small_font.render(value, True, WHITE)
+                if value_surf.get_width() > max_value_width:
+                    # If too long, truncate or use smaller font
+                    if len(value) > 15:
+                        # Truncate with ellipsis
+                        shortened_value = value[:12] + "..."
+                        value_surf = self.small_font.render(shortened_value, True, WHITE)
+                    else:
+                        # Try with a smaller font
+                        smaller_font = pygame.font.SysFont('Arial', SMALL_FONT_SIZE - 2)
+                        value_surf = smaller_font.render(value, True, WHITE)
+                
+                # Calculate vertical center position for value text
+                value_y = y_offset + (row_height - value_surf.get_height()) // 2
+                self.screen.blit(value_surf, (info_bg_rect.x + label_column_width + 20, value_y))
+                
+                y_offset += row_height
     
     def draw_menu(self):
         """Draw the game menu screen"""
@@ -1039,8 +1314,9 @@ class RendererProcess:
             "CONTROLS:",
             "ARROWS: Move player (← →) and Jump (↑)",
             "Z/X: Attack",
-            "ESC: Pause/Quit",
+            "ESC: Pause",
             "P: Toggle process info display",
+            "Q: Quit game",
             "",
             "Press SPACE to Start"
         ]
@@ -1090,7 +1366,7 @@ class RendererProcess:
         
         instructions = [
             "Press SPACE to Restart",
-            "Press ESC to Quit"
+            "Press ESC or Q to Quit"
         ]
         
         y_pos = 400
@@ -1111,20 +1387,22 @@ class RendererProcess:
         pause_surf = pygame.font.SysFont('Arial', 72, bold=True).render(pause_text, True, WHITE)
         self.screen.blit(pause_surf, (self.width//2 - pause_surf.get_width()//2, 200))
         
-        # Controls reminder
-        controls = [
-            "Press ESC to Resume",
-            "CONTROLS:",
-            "ARROWS: Move player (← →) and Jump (↑)",
-            "Z/X: Attack",
-            "P: Toggle process info display"
-        ]
+        # Simple resume instructions
+        resume_text = "Press ESC to Resume"
+        resume_surf = self.main_font.render(resume_text, True, WHITE)
         
-        y_pos = 300
-        for control in controls:
-            text_surf = self.small_font.render(control, True, WHITE)
-            self.screen.blit(text_surf, (self.width//2 - text_surf.get_width()//2, y_pos))
-            y_pos += 30
+        # Add a pulsing effect to make it more visible
+        pulse = math.sin(pygame.time.get_ticks() * 0.005) * 0.3 + 0.7
+        pulse_color = (int(255 * pulse), int(255 * pulse), int(100 * pulse))
+        resume_surf_pulse = self.main_font.render(resume_text, True, pulse_color)
+        
+        # Quit instructions
+        quit_text = "Press Q to Quit"
+        quit_surf_pulse = self.main_font.render(quit_text, True, pulse_color)
+        
+        # Position at the center of the screen
+        self.screen.blit(resume_surf_pulse, (self.width//2 - resume_surf_pulse.get_width()//2, 300))
+        self.screen.blit(quit_surf_pulse, (self.width//2 - quit_surf_pulse.get_width()//2, 350))
     
     def run(self):
         """Main rendering loop"""

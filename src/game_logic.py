@@ -249,6 +249,12 @@ class GameLogicProcess:
                 keys = command.get('keys', {})
                 key_press = command.get('key_press', {})  # Get the just-pressed keys
                 
+                # Check for Q key to quit in any state
+                if key_press.get(pygame.K_q):
+                    # Send exit command
+                    self.render_to_logic_queue.put({'type': 'exit_game'})
+                    return
+                
                 # Get current game state
                 with self.game_state_lock:
                     current_state = self.game_state.value
@@ -473,6 +479,12 @@ class GameLogicProcess:
                     'enemy_type': getattr(entity, 'enemy_type', 0),
                     'powerup_type': getattr(entity, 'powerup_type', 0)
                 }
+                
+                # Add velocity data for player entity
+                if entity.type == EntityType.PLAYER:
+                    data['velocity_x'] = entity.velocity_x
+                    data['velocity_y'] = entity.velocity_y
+                    data['facing_right'] = self.player_facing_right
                 
                 # Add additional fields if they exist
                 if hasattr(entity, 'direction'):
