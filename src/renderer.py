@@ -78,10 +78,26 @@ class RendererProcess:
         self.load_assets()
         
         # Initialize animation state
+        self.player_anim_counter = 0
+        self.player_anim_delay = 10
         self.player_frame_idx = 0
+        
+        self.flame_anim_counter = 0
+        self.flame_anim_delay = 5
+        self.flame_anim_idx = 0
+        
+        self.enemy1_anim_counter = 0
+        self.enemy1_anim_delay = 15
         self.enemy1_frame_idx = 0
+        
+        self.enemy2_anim_counter = 0
+        self.enemy2_anim_delay = 20
         self.enemy2_frame_idx = 0
+        
+        self.enemy3_anim_counter = 0
+        self.enemy3_anim_delay = 10
         self.enemy3_frame_idx = 0
+        
         self.powerup1_frame_idx = 0
         self.powerup2_frame_idx = 0
         self.powerup3_frame_idx = 0
@@ -107,6 +123,7 @@ class RendererProcess:
         self.explosions = []
         self.projectile_particles = []
         self.explosion_particles = []
+        self.explosion_glows = []
         
         # Initialize entity tracking
         self.entities = []
@@ -679,8 +696,17 @@ class RendererProcess:
         try:
             if not self.logic_to_render_queue.empty():
                 game_data = self.logic_to_render_queue.get_nowait()
-                self.entities = game_data.get('entities', [])
-                self.current_wave = game_data.get('wave', 1)
+                
+                # Check if this is an explosion event
+                if game_data.get('type') == 'explosion':
+                    x = game_data.get('x', 0)
+                    y = game_data.get('y', 0)
+                    enemy_type = game_data.get('enemy_type', 1)
+                    self.create_enemy_explosion(x, y, enemy_type)
+                else:
+                    # Regular game state update
+                    self.entities = game_data.get('entities', [])
+                    self.current_wave = game_data.get('wave', 1)
                 
                 # Comment out debug prints
                 # Debug: Count entities by type
@@ -782,6 +808,12 @@ class RendererProcess:
                 self.explosion_particles.pop(i)
             else:
                 self.explosion_particles[i] = (x, y, color, size, lifetime, dx, dy)
+        
+        # Update explosion glow effects
+        for i, glow in enumerate(self.explosion_glows[:]):
+            glow['lifetime'] -= 1
+            if glow['lifetime'] <= 0:
+                self.explosion_glows.pop(i)
     
     def create_explosion(self, x, y, color=(255, 100, 0), count=30):
         """Create particle explosion effect"""
@@ -798,6 +830,49 @@ class RendererProcess:
             b = min(255, max(0, color[2] + random.randint(-20, 20)))
             self.explosion_particles.append((x, y, (r, g, b), size, lifetime, dx, dy))
     
+    def create_enemy_explosion(self, x, y, enemy_type=1):
+        """Create an explosion effect when an enemy is destroyed"""
+        # Center the explosion on the enemy
+        center_x = x + 30  # Assuming enemy width is 60
+        center_y = y + 30  # Assuming enemy height is 60
+        
+        # Create the main explosion with color based on enemy type
+        if enemy_type == 1:
+            color = (255, 100, 0)  # Orange for basic enemies
+        elif enemy_type == 2:
+            color = (100, 100, 255)  # Blue for tough enemies
+        else:
+            color = (255, 255, 0)  # Yellow for fast enemies
+        
+        # Create multiple particle bursts for a more impressive effect
+        self.create_explosion(center_x, center_y, color=color, count=40)
+        
+        # Add a white flash in the center
+        self.create_explosion(center_x, center_y, color=(255, 255, 255), count=15)
+        
+        # Add a ring of particles
+        ring_count = 20
+        for i in range(ring_count):
+            angle = (i / ring_count) * math.pi * 2
+            distance = 15
+            ring_x = center_x + math.cos(angle) * distance
+            ring_y = center_y + math.sin(angle) * distance
+            self.create_explosion(ring_x, ring_y, color=color, count=3)
+            
+        # Add glowing effect at the center
+        glowing_surf = pygame.Surface((100, 100), pygame.SRCALPHA)
+        for radius in range(50, 0, -5):
+            alpha = min(150, 200 - radius * 3)
+            pygame.draw.circle(glowing_surf, (*color, alpha), (50, 50), radius)
+        
+        # Store the glowing effect with a lifetime
+        self.explosion_glows.append({
+            'surface': glowing_surf,
+            'x': center_x - 50,
+            'y': center_y - 50,
+            'lifetime': 10
+        })
+    
     def create_projectile_trail(self, x, y):
         """Create particle trail behind projectiles"""
         for _ in range(2):
@@ -809,7 +884,27 @@ class RendererProcess:
     
     def draw_entities(self):
         """Draw all game entities with animations"""
-        # Draw explosion particles first (behind everything)
+        # Draw explosion glows first (they're the furthest back layer)
+        for glow in self.explosion_glows:
+            # Apply a fade-out effect as lifetime decreases
+            alpha_factor = glow['lifetime'] / 10  # 10 was the initial lifetime
+            if alpha_factor > 0:
+                # Create a copy of the surface with adjusted alpha
+                fade_surf = glow['surface'].copy()
+                # Scale the surface for a pulsing effect
+                scale_factor = 1.0 + (1.0 - alpha_factor) * 0.5  # Grows by 50% as it fades
+                new_size = (int(fade_surf.get_width() * scale_factor), 
+                           int(fade_surf.get_height() * scale_factor))
+                scaled_surf = pygame.transform.scale(fade_surf, new_size)
+                
+                # Adjust position to keep the effect centered
+                offset_x = (new_size[0] - fade_surf.get_width()) // 2
+                offset_y = (new_size[1] - fade_surf.get_height()) // 2
+                
+                # Render the glow
+                self.screen.blit(scaled_surf, (glow['x'] - offset_x, glow['y'] - offset_y))
+        
+        # Draw explosion particles next (behind everything)
         for x, y, color, size, lifetime, _, _ in self.explosion_particles:
             # Fade out as lifetime decreases
             alpha = int(lifetime * 255 / 40)
@@ -1119,7 +1214,7 @@ class RendererProcess:
         
         # Enhanced Controls Display
         controls_bg_height = 60
-        controls_bg_width = 750  # Increase width from 650 to 750 to accommodate all controls
+        controls_bg_width = 780  # Increase width from 750 to 950 to fully accommodate all controls
         controls_bg_rect = pygame.Rect(
             (self.width - controls_bg_width) // 2,
             self.height - controls_bg_height - 10,

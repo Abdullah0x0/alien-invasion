@@ -11,7 +11,7 @@ import sys
 FPS = 60
 PLAYER_SPEED = 5
 GRAVITY = 0.5
-JUMP_POWER = 17
+JUMP_POWER = 15
 PLATFORM_COUNT = 8
 ENEMY_TYPES = 3
 SPAWN_INTERVAL = 3.0  # seconds
@@ -538,8 +538,24 @@ class GameLogicProcess:
                             if enemy.health <= 0:
                                 with self.player_score_lock:
                                     self.player_score.value += 10
+                                
+                                # Save enemy position before removing it
+                                enemy_x = enemy.x
+                                enemy_y = enemy.y
+                                enemy_type = getattr(enemy, 'enemy_type', 1)
+                                
+                                # Remove the enemy
                                 self.enemies.remove(enemy)
                                 del self.entities[enemy.id]
+                                
+                                # Send explosion event to renderer
+                                explosion_data = {
+                                    'type': 'explosion',
+                                    'x': enemy_x,
+                                    'y': enemy_y,
+                                    'enemy_type': enemy_type
+                                }
+                                self.logic_to_render_queue.put(explosion_data)
                             
                             self.projectiles.remove(projectile)
                             del self.entities[projectile.id]
