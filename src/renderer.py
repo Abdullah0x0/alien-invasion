@@ -590,6 +590,7 @@ class RendererProcess:
                 game_data = self.logic_to_render_queue.get_nowait()
                 self.entities = game_data.get('entities', [])
                 self.current_wave = game_data.get('wave', 1)
+                self.player_facing_right = game_data.get('player_facing_right', True)
                 
                 # Comment out debug prints
                 # Debug: Count entities by type
@@ -710,10 +711,11 @@ class RendererProcess:
             b = min(255, max(0, color[2] + random.randint(-20, 20)))
             self.explosion_particles.append((x, y, (r, g, b), size, lifetime, dx, dy))
     
-    def create_projectile_trail(self, x, y):
+    def create_projectile_trail(self, x, y, direction=1):
         """Create particle trail behind projectiles"""
         for _ in range(2):
-            dx = random.random() * 0.5 - 1.5  # Move backward
+            # Create trail moving in opposite direction of projectile
+            dx = random.random() * 0.5 * -direction - 1.0 * direction  # Trail moves opposite to projectile direction
             dy = random.random() * 1 - 0.5  # Slight vertical spread
             size = random.random() * 2 + 1
             lifetime = random.randint(5, 15)
@@ -752,8 +754,14 @@ class RendererProcess:
             height = entity['height']
             
             if entity_type == EntityType.PLAYER.value:
-                # Draw current animation frame
+                # Get the current animation frame
                 player_frame = self.player_frames[self.player_frame_idx]
+                
+                # Flip the player sprite if facing left
+                if not self.player_facing_right:
+                    player_frame = pygame.transform.flip(player_frame, True, False)
+                
+                # Draw player
                 self.screen.blit(player_frame, (x, y))
                 
                 # Draw jet flame behind player (with flickering effect)
@@ -763,7 +771,18 @@ class RendererProcess:
                         self.player_jet_flame,
                         (int(30 * flame_scale), int(20 * flame_scale))
                     )
-                    self.screen.blit(flame_surface, (x - 25, y + 30))
+                    
+                    # Position flame based on direction
+                    if self.player_facing_right:
+                        flame_pos = (x - 25, y + 30)  # Original position for right-facing
+                    else:
+                        flame_pos = (x + 45, y + 30)  # Adjusted position for left-facing
+                    
+                    # Flip flame if facing left
+                    if not self.player_facing_right:
+                        flame_surface = pygame.transform.flip(flame_surface, True, False)
+                    
+                    self.screen.blit(flame_surface, flame_pos)
             
             elif entity_type == EntityType.PLATFORM.value:
                 # We need to stretch the platform sprite to match the size
@@ -821,6 +840,9 @@ class RendererProcess:
                     pygame.draw.rect(self.screen, GREEN, (x + 5, y - 5, current_width, 3))
             
             elif entity_type == EntityType.PROJECTILE.value:
+                # Check if projectile has direction
+                direction = entity.get('direction', 1)  # Default to right
+                
                 # Add a glowing effect to projectiles
                 glow_size = 20
                 glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
@@ -837,11 +859,19 @@ class RendererProcess:
                 glow_y = y - int(glow_size/2) + 5
                 self.screen.blit(glow_surf, (glow_x, glow_y))
                 
-                # Draw the actual projectile
-                self.screen.blit(self.assets['projectile'], (x, y))
+                # Get the projectile surface
+                projectile_surf = self.assets['projectile']
                 
-                # Create particle trail
-                self.create_projectile_trail(x + 5, y + 5)
+                # Flip projectile if going left
+                if direction < 0:
+                    projectile_surf = pygame.transform.flip(projectile_surf, True, False)
+                
+                # Draw the actual projectile
+                self.screen.blit(projectile_surf, (x, y))
+                
+                # Create particle trail with adjusted position based on direction
+                trail_x = x + (0 if direction < 0 else 5)
+                self.create_projectile_trail(trail_x, y + 5, direction)
             
             elif entity_type == EntityType.POWERUP.value:
                 powerup_type = entity.get('powerup_type', 1)

@@ -76,6 +76,7 @@ class GameLogicProcess:
         self.powerups = []
         
         self.player = None
+        self.player_facing_right = True  # Default facing direction
         self.wave_number = 1
         self.enemy_spawn_timer = 0
         self.last_spawn_time = time.time()
@@ -242,9 +243,11 @@ class GameLogicProcess:
                     # Move left
                     if keys.get(pygame.K_LEFT):
                         self.player.velocity_x = -PLAYER_SPEED
+                        self.player_facing_right = False  # Update facing direction
                     # Move right
                     elif keys.get(pygame.K_RIGHT):
                         self.player.velocity_x = PLAYER_SPEED
+                        self.player_facing_right = True  # Update facing direction
                     else:
                         self.player.velocity_x = 0
                     
@@ -298,16 +301,25 @@ class GameLogicProcess:
             self.player_position[1] = int(self.player.y)
     
     def fire_projectile(self):
-        """Create a player projectile"""
+        """Create a player projectile that shoots in the direction the player is facing"""
+        # Calculate starting position based on direction
+        if self.player_facing_right:
+            start_x = self.player.x + self.player.width
+        else:
+            start_x = self.player.x
+            
         projectile = self.create_entity(
             EntityType.PROJECTILE,
-            self.player.x + self.player.width/2,
+            start_x,
             self.player.y + self.player.height/2,
             10, 10
         )
-        projectile.velocity_x = 10  # Always shoot right for now
+        
+        # Set velocity based on player direction
+        projectile.velocity_x = 10 if self.player_facing_right else -10
         projectile.damage = 10
         projectile.source = 'player'
+        projectile.direction = 1 if self.player_facing_right else -1  # Store direction for rendering
     
     def update_entities(self):
         """Update all game entities with thread safety"""
@@ -388,7 +400,7 @@ class GameLogicProcess:
         
         with self.entities_lock:
             for entity in self.entities.values():
-                entity_data.append({
+                data = {
                     'id': entity.id,
                     'type': entity.type.value,
                     'x': entity.x,
@@ -397,11 +409,18 @@ class GameLogicProcess:
                     'height': entity.height,
                     'enemy_type': getattr(entity, 'enemy_type', 0),
                     'powerup_type': getattr(entity, 'powerup_type', 0)
-                })
+                }
+                
+                # Add additional fields if they exist
+                if hasattr(entity, 'direction'):
+                    data['direction'] = entity.direction
+                
+                entity_data.append(data)
         
         game_data = {
             'entities': entity_data,
-            'wave': self.wave_number
+            'wave': self.wave_number,
+            'player_facing_right': self.player_facing_right  # Send player direction to renderer
         }
         
         self.logic_to_render_queue.put(game_data)
