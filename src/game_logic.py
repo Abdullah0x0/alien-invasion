@@ -276,7 +276,7 @@ class GameLogicProcess:
         screen_center_x = screen_width / 2
         
         # Adjust spawn interval based on wave
-        base_spawn_interval = SPAWN_INTERVAL
+        base_spawn_interval = SPAWN_INTERVAL * 1.5
         
         while True:
             # Only spawn when playing
@@ -286,13 +286,14 @@ class GameLogicProcess:
                     continue
             
             # Calculate spawn interval based on wave (gets shorter as waves progress)
-            current_spawn_interval = max(0.5, base_spawn_interval - (self.wave_number * 0.2))
+            # Reduced wave scaling (0.15 instead of 0.2) to slow down difficulty increase
+            current_spawn_interval = max(0.8, base_spawn_interval - (self.wave_number * 0.15))
             
             current_time = time.time()
             if current_time - self.last_spawn_time >= current_spawn_interval:
                 with self.wave_lock:
-                    # Determine number of enemies based on wave
-                    spawn_count = min(self.wave_number, 5)
+                    # Determine number of enemies based on wave (reduced max from 5 to 3)
+                    spawn_count = min(self.wave_number, 3)
                     
                     for _ in range(spawn_count):
                         # Higher chance of tougher enemies in later waves
@@ -364,14 +365,14 @@ class GameLogicProcess:
                     time.sleep(1.0)
                     continue
             
-            # 5% chance to spawn a power-up every 5 seconds
-            if random.random() < 0.05:
+            # 15% chance to spawn a power-up every 4 seconds (reduced from 20% every 3 seconds)
+            if random.random() < 0.15:
                 x = random.randint(100, screen_width - 100)
                 y = random.randint(100, screen_height - 200)
                 powerup = self.create_entity(EntityType.POWERUP, x, y, 30, 30)
                 powerup.powerup_type = random.randint(1, 3)  # Different powerup types
             
-            time.sleep(5.0)
+            time.sleep(4.0)
     
     def update_player(self):
         """Update player position and state"""
@@ -646,20 +647,48 @@ class GameLogicProcess:
             # Update powerups
             for powerup in self.powerups[:]:
                 if powerup.check_collision(self.player):
+                    # Determine powerup message based on type
+                    powerup_message = ""
+                    powerup_color = (255, 255, 255)  # Default white
+                    
                     # Apply power-up effect
                     if powerup.powerup_type == 1:  # Health
                         with self.player_health_lock:
                             self.player_health.value = min(100, self.player_health.value + 25)
+                        powerup_message = "HEALTH +25"
+                        powerup_color = (0, 255, 0)  # Green for health
                     elif powerup.powerup_type == 2:  # Score boost
                         with self.player_score_lock:
                             self.player_score.value += 50
+                        powerup_message = "SCORE +50"
+                        powerup_color = (255, 255, 0)  # Yellow for score
                     elif powerup.powerup_type == 3:  # Temporary invincibility
                         self.player.invincible = True
                         # Start a thread to remove invincibility after 5 seconds
                         threading.Thread(target=self.remove_invincibility, daemon=True).start()
+                        powerup_message = "INVINCIBILITY (5s)"
+                        powerup_color = (0, 100, 255)  # Blue for invincibility
                     
+                    # Save powerup position for animation
+                    powerup_x = powerup.x
+                    powerup_y = powerup.y
+                    powerup_type = powerup.powerup_type
+                    
+                    # Remove the powerup from the game
                     self.powerups.remove(powerup)
                     del self.entities[powerup.id]
+                    
+                    # Send powerup pickup message to renderer
+                    pickup_data = {
+                        'type': 'powerup_message',
+                        'message': powerup_message,
+                        'duration': 2.0,  # Show for 2 seconds
+                        'color': powerup_color,
+                        'x': powerup_x,
+                        'y': powerup_y,
+                        'powerup_type': powerup_type
+                    }
+                    self.logic_to_render_queue.put(pickup_data)
     
     def remove_invincibility(self):
         """Remove player invincibility after a delay"""

@@ -124,6 +124,11 @@ class RendererProcess:
         self.wave_message = None
         self.wave_message_end_time = 0
         
+        # Powerup message display
+        self.powerup_message = None
+        self.powerup_message_end_time = 0
+        self.powerup_pickup_animation = []
+        
         # Initialize particle systems
         self.explosions = []
         self.projectile_particles = []
@@ -848,6 +853,21 @@ class RendererProcess:
                         'duration': game_data.get('duration', 2.0)
                     }
                     self.wave_message_end_time = time.time() + self.wave_message['duration']
+                # Check if this is a powerup message
+                elif game_data.get('type') == 'powerup_message':
+                    self.powerup_message = {
+                        'text': game_data.get('message', ''),
+                        'duration': game_data.get('duration', 2.0),
+                        'color': game_data.get('color', (255, 255, 255))
+                    }
+                    self.powerup_message_end_time = time.time() + self.powerup_message['duration']
+                    
+                    # Create pickup animation particles
+                    self.create_powerup_pickup_animation(
+                        game_data.get('x', 0),
+                        game_data.get('y', 0),
+                        game_data.get('powerup_type', 1)
+                    )
                 # Check if this is an explosion event
                 elif game_data.get('type') == 'explosion':
                     x = game_data.get('x', 0)
@@ -979,6 +999,30 @@ class RendererProcess:
                 self.powerup2_frame_idx = (self.powerup2_frame_idx + 1) % len(self.powerup2_frames)
             if hasattr(self, 'powerup3_frames') and self.powerup3_frames:
                 self.powerup3_frame_idx = (self.powerup3_frame_idx + 1) % len(self.powerup3_frames)
+                
+        # Update powerup pickup animation
+        i = 0
+        while i < len(self.powerup_pickup_animation):
+            ring = self.powerup_pickup_animation[i]
+            # Process delay
+            if ring['delay'] > 0:
+                ring['delay'] -= 1
+                self.powerup_pickup_animation[i] = ring
+                i += 1
+                continue
+                
+            # Expand the ring
+            ring['radius'] += ring['speed']
+            # Fade out as it expands
+            ring['alpha'] = max(0, int(200 * (1 - ring['radius'] / ring['max_radius'])))
+            
+            # Remove rings that have expanded fully
+            if ring['radius'] >= ring['max_radius'] or ring['alpha'] <= 0:
+                self.powerup_pickup_animation.pop(i)
+            else:
+                # Update the ring
+                self.powerup_pickup_animation[i] = ring
+                i += 1
     
     def create_explosion(self, x, y, color=(255, 100, 0), count=30):
         """Create particle explosion effect"""
@@ -1106,25 +1150,45 @@ class RendererProcess:
         
         # Draw explosion particles next (behind everything)
         for x, y, color, size, lifetime, _, _ in self.explosion_particles:
-            # Fade out as lifetime decreases
-            alpha = int(lifetime * 255 / 40)
-            # Create proper RGBA color
-            color_with_alpha = (color[0], color[1], color[2], alpha)
-            # Create a temporary surface for the particle with alpha
-            particle_surf = pygame.Surface((int(size*2), int(size*2)), pygame.SRCALPHA)
-            pygame.draw.circle(particle_surf, color_with_alpha, (int(size), int(size)), int(size))
-            self.screen.blit(particle_surf, (int(x - size), int(y - size)))
+            try:
+                # Fade out as lifetime decreases
+                alpha = int(lifetime * 255 / 40)
+                # Make sure color is valid RGB
+                if isinstance(color, tuple) and len(color) >= 3:
+                    # Create proper RGBA color
+                    color_with_alpha = (color[0], color[1], color[2], alpha)
+                else:
+                    # Fallback to white if color is invalid
+                    color_with_alpha = (255, 255, 255, alpha)
+                
+                # Create a temporary surface for the particle with alpha
+                particle_surf = pygame.Surface((int(size*2), int(size*2)), pygame.SRCALPHA)
+                pygame.draw.circle(particle_surf, color_with_alpha, (int(size), int(size)), int(size))
+                self.screen.blit(particle_surf, (int(x - size), int(y - size)))
+            except ValueError:
+                # Skip drawing this particle if there's an error
+                continue
         
         # Draw projectile particles (trails)
         for x, y, color, size, lifetime, _, _ in self.projectile_particles:
-            # Fade out as lifetime decreases
-            alpha = int(lifetime * 255 / 15)
-            # Create proper RGBA color
-            color_with_alpha = (color[0], color[1], color[2], alpha)
-            # Create a temporary surface for the particle with alpha
-            particle_surf = pygame.Surface((int(size*2), int(size*2)), pygame.SRCALPHA)
-            pygame.draw.circle(particle_surf, color_with_alpha, (int(size), int(size)), int(size))
-            self.screen.blit(particle_surf, (int(x - size), int(y - size)))
+            try:
+                # Fade out as lifetime decreases
+                alpha = int(lifetime * 255 / 15)
+                # Make sure color is valid RGB
+                if isinstance(color, tuple) and len(color) >= 3:
+                    # Create proper RGBA color
+                    color_with_alpha = (color[0], color[1], color[2], alpha)
+                else:
+                    # Fallback to white if color is invalid
+                    color_with_alpha = (255, 255, 255, alpha)
+                
+                # Create a temporary surface for the particle with alpha
+                particle_surf = pygame.Surface((int(size*2), int(size*2)), pygame.SRCALPHA)
+                pygame.draw.circle(particle_surf, color_with_alpha, (int(size), int(size)), int(size))
+                self.screen.blit(particle_surf, (int(x - size), int(y - size)))
+            except ValueError:
+                # Skip drawing this particle if there's an error
+                continue
         
         # Draw regular entities
         for entity in self.entities:
@@ -1932,8 +1996,119 @@ class RendererProcess:
                 self.screen.blit(message_surf, (message_rect.centerx - message_surf.get_width()//2,
                                             message_rect.centery - message_surf.get_height()//2))
             
+            # Draw powerup pickup animation rings
+            for ring in self.powerup_pickup_animation:
+                # Ensure color is valid
+                if isinstance(ring['color'], tuple) and len(ring['color']) >= 3:
+                    ring_color_rgb = ring['color'][:3]  # Take just RGB components
+                else:
+                    # Fallback to white if color is invalid
+                    ring_color_rgb = (255, 255, 255)
+                
+                # Draw the expanding ring with alpha
+                ring_surf = pygame.Surface((ring['radius']*2, ring['radius']*2), pygame.SRCALPHA)
+                # Create RGBA color manually 
+                ring_color = (ring_color_rgb[0], ring_color_rgb[1], ring_color_rgb[2], ring['alpha'])
+                pygame.draw.circle(ring_surf, ring_color, (ring['radius'], ring['radius']), ring['radius'], 2)
+                self.screen.blit(ring_surf, (ring['x'] - ring['radius'], ring['y'] - ring['radius']))
+            
+            # Draw powerup message if active
+            if self.powerup_message and current_time < self.powerup_message_end_time:
+                # Get color - ensure it's a proper tuple
+                if isinstance(self.powerup_message['color'], tuple) and len(self.powerup_message['color']) >= 3:
+                    text_color = self.powerup_message['color'][:3]  # Take just RGB components
+                else:
+                    # Fallback to white if color is invalid
+                    text_color = (255, 255, 255)
+                
+                # Create a smaller message box for powerups
+                message_surf = self.main_font.render(self.powerup_message['text'], True, text_color)
+                message_width = message_surf.get_width() + 40
+                message_height = message_surf.get_height() + 20
+                
+                # Calculate remaining display time for fade effect
+                time_remaining = self.powerup_message_end_time - current_time
+                alpha = min(255, int(time_remaining * 255 / self.powerup_message['duration']))
+                
+                # Create overlay with alpha
+                overlay = pygame.Surface((message_width, message_height), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, min(150, alpha)))
+                
+                # Position in top-center of screen
+                message_rect = pygame.Rect(
+                    (self.width - message_width) // 2,
+                    80,  # Position below the score/health UI
+                    message_width,
+                    message_height
+                )
+                self.screen.blit(overlay, message_rect)
+                
+                # Draw border with the text color
+                pygame.draw.rect(self.screen, text_color, message_rect, 2)
+                
+                # Add a simple glow effect - without using unpacking which can cause issues
+                glow_surf = pygame.Surface((message_width+4, message_height+4), pygame.SRCALPHA)
+                for i in range(3):
+                    glow_alpha = int(alpha * (3-i) / 3)
+                    # Create RGBA color manually
+                    glow_color = (text_color[0], text_color[1], text_color[2], glow_alpha)
+                    pygame.draw.rect(glow_surf, glow_color, (i, i, message_width-i*2, message_height-i*2), 1)
+                self.screen.blit(glow_surf, (message_rect.x-2, message_rect.y-2))
+                
+                # Draw text with alpha based on remaining time
+                text_surf = pygame.Surface(message_surf.get_size(), pygame.SRCALPHA)
+                text_surf.blit(message_surf, (0, 0))
+                text_surf.set_alpha(alpha)
+                self.screen.blit(text_surf, (message_rect.centerx - message_surf.get_width()//2,
+                                         message_rect.centery - message_surf.get_height()//2))
+            
             # Update display
             pygame.display.flip()
             
             # Cap to 60 FPS
             self.clock.tick(FPS) 
+    
+    def create_powerup_pickup_animation(self, x, y, powerup_type=1):
+        """Create a special animation effect when a powerup is collected"""
+        # Center the animation on the powerup
+        center_x = x + 15  # Assuming powerup width is 30
+        center_y = y + 15  # Assuming powerup height is 30
+        
+        # Choose color based on powerup type - guaranteed to be valid RGB tuples
+        if powerup_type == 1:  # Health
+            color = (0, 255, 0)  # Green
+        elif powerup_type == 2:  # Score
+            color = (255, 255, 0)  # Yellow
+        else:  # Invincibility
+            color = (0, 100, 255)  # Blue
+        
+        # Create expanding ring effect
+        for i in range(3):
+            # Add a delayed expanding ring
+            self.powerup_pickup_animation.append({
+                'x': center_x,
+                'y': center_y,
+                'radius': 5,
+                'max_radius': 40 + i * 10,
+                'color': color,
+                'delay': i * 5,  # Stagger the start of each ring
+                'alpha': 200,
+                'speed': 1.5 + i * 0.2
+            })
+        
+        # Create rising particles
+        for _ in range(20):
+            angle = random.random() * math.pi * 2
+            speed = random.uniform(0.5, 2.0)
+            dx = math.cos(angle) * speed * 0.5
+            dy = -speed * 2  # Always rise up
+            size = random.uniform(2, 5)
+            lifetime = random.randint(30, 60)
+            
+            # Add some variation to color
+            r = min(255, max(0, color[0] + random.randint(-20, 20)))
+            g = min(255, max(0, color[1] + random.randint(-20, 20)))
+            b = min(255, max(0, color[2] + random.randint(-20, 20)))
+            adjusted_color = (r, g, b)
+            
+            self.explosion_particles.append((center_x, center_y, adjusted_color, size, lifetime, dx, dy))
