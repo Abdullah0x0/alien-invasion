@@ -49,6 +49,36 @@ A platform combat game where players fight against waves of aliens, demonstratin
    - Context-sensitive audio feedback based on game events
    - Adaptive volume based on event significance
 
+7. **Signal Handling**
+   - Implementation of SIGINT (Ctrl+C) handling for graceful shutdown
+   - Signal routing to manage process termination sequence
+   - Clean resource release during abnormal termination
+   - Preventing orphaned processes and memory leaks
+
+8. **Context-Based Lock Management**
+   - Advanced lock acquisition using context managers (with statements)
+   - Automatic lock release even during exceptions
+   - Deadlock prevention through consistent lock acquisition order
+   - Minimized critical sections for improved performance
+
+9. **Process Prioritization**
+   - Daemon process implementation for automatic cleanup
+   - Process hierarchy with parent-child relationships
+   - Background vs. foreground process handling
+   - Resource allocation based on process importance
+
+10. **Event-based Programming Model**
+    - Event-driven architecture for game interactivity
+    - Polling and interrupt-based event handling
+    - Event queues and dispatching systems
+    - Asynchronous event processing similar to OS interrupt handling
+
+11. **Advanced Queue-based Message Passing**
+    - Structured inter-process message protocols
+    - Priority-based message queue processing
+    - Non-blocking message handling
+    - Message filtering and routing between processes
+
 ## Technical Architecture
 
 ### Core Components
