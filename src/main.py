@@ -10,6 +10,7 @@ from multiprocessing import Process, Queue, Value, Lock, Array
 # Local imports
 from game_logic import GameLogicProcess
 from renderer import RendererProcess
+from intro_sequence import IntroSequence
 
 # Constants
 WINDOW_WIDTH = 1200
@@ -29,7 +30,29 @@ def main():
     
     # Initialize pygame
     pygame.init()
+    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption(GAME_TITLE)
+    
+    # Play intro sequence
+    intro = IntroSequence(WINDOW_WIDTH, WINDOW_HEIGHT)
+    intro.start()
+    
+    clock = pygame.time.Clock()
+    # Run intro sequence until complete
+    while not intro.is_completed():
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit(0)
+        
+        dt = clock.tick(60) / 1000.0  # Convert to seconds
+        
+        # Update and render intro
+        intro.update(dt, events)
+        intro.render(screen)
+        
+        pygame.display.flip()
     
     # Create shared resources with proper synchronization
     game_state = Value('i', 0)  # 0: Menu, 1: Playing, 2: Paused, 3: Game Over
