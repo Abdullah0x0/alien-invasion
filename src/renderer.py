@@ -55,6 +55,9 @@ class RendererProcess:
         self.logic_to_render_queue = logic_to_render_queue
         self.render_to_logic_queue = render_to_logic_queue
         
+        # Game timer tracking
+        self.game_time = 0.0
+        
         # Initialize pygame and create window
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Alien Invasion")
@@ -925,15 +928,7 @@ class RendererProcess:
                     self.entities = game_data.get('entities', [])
                     self.current_wave = game_data.get('wave', 1)
                     self.wave_progress = game_data.get('wave_progress', 0)
-                
-                # Comment out debug prints
-                # Debug: Count entities by type
-                # entity_counts = {}
-                # for entity in self.entities:
-                #     entity_type = entity['type']
-                #     if entity_type not in entity_counts:
-                #         entity_counts[entity_type] = 0
-                #     entity_counts[entity_type] += 1
+                    self.game_time = game_data.get('game_time', 0.0)  # Update game time
         except Exception as e:
             print(f"Error receiving game state: {e}")
     
@@ -1536,6 +1531,13 @@ class RendererProcess:
         score_surface = self.main_font.render(score_text, True, WHITE)
         self.screen.blit(score_surface, (20, 20))
         
+        # Draw time survived
+        minutes = int(self.game_time) // 60
+        seconds = int(self.game_time) % 60
+        time_text = f"TIME: {minutes:02d}:{seconds:02d}"
+        time_surface = self.main_font.render(time_text, True, WHITE)
+        self.screen.blit(time_surface, (self.width // 2 - time_surface.get_width() // 2, 20))
+        
         # Draw wave number and progress bar
         wave_text = f"WAVE: {self.current_wave}"
         wave_surface = self.main_font.render(wave_text, True, WHITE)
@@ -1930,6 +1932,13 @@ class RendererProcess:
         wave_surf = self.main_font.render(wave_text, True, WHITE)
         self.screen.blit(wave_surf, (self.width//2 - wave_surf.get_width()//2, 300))
         
+        # Survival time
+        minutes = int(self.game_time) // 60
+        seconds = int(self.game_time) % 60
+        time_text = f"SURVIVAL TIME: {minutes:02d}:{seconds:02d}"
+        time_surf = self.main_font.render(time_text, True, WHITE)
+        self.screen.blit(time_surf, (self.width//2 - time_surf.get_width()//2, 350))
+        
         # Instructions - with pulse effect
         pulse = math.sin(pygame.time.get_ticks() * 0.005) * 0.3 + 0.7
         color = (int(255 * pulse), int(255 * pulse), int(100 * pulse))
@@ -1939,7 +1948,7 @@ class RendererProcess:
             "Press ESC or Q to Quit"
         ]
         
-        y_pos = 400
+        y_pos = 430
         for instruction in instructions:
             text_surf = self.main_font.render(instruction, True, color)
             self.screen.blit(text_surf, (self.width//2 - text_surf.get_width()//2, y_pos))

@@ -81,6 +81,7 @@ class GameLogicProcess:
         self.wave_number = 1
         self.enemy_spawn_timer = 0
         self.last_spawn_time = time.time()
+        self.game_start_time = time.time()  # Track when the game started
         
         # Wave progression tracking
         self.enemies_killed_in_wave = 0
@@ -763,11 +764,16 @@ class GameLogicProcess:
                 
                 entity_data.append(data)
         
+        # Calculate elapsed game time
+        current_time = time.time()
+        elapsed_time = current_time - self.game_start_time
+        
         game_data = {
             'entities': entity_data,
             'wave': self.wave_number,
             'wave_progress': self.wave_progress,  # Add wave progress
-            'player_facing_right': self.player_facing_right  # Send player direction to renderer
+            'player_facing_right': self.player_facing_right,  # Send player direction to renderer
+            'game_time': elapsed_time  # Send elapsed time to renderer
         }
         
         self.logic_to_render_queue.put(game_data)
@@ -856,6 +862,7 @@ class GameLogicProcess:
             
         # Reset spawn timer
         self.last_spawn_time = time.time()
+        self.game_start_time = time.time()  # Reset game start time
         
         # Restart the game by reinitializing entities
         self.initialize_game()
