@@ -5,6 +5,7 @@ import threading
 import pygame
 from multiprocessing import Value, Lock, Queue
 from enum import Enum, auto
+import sys
 
 # Constants
 FPS = 60
@@ -96,6 +97,8 @@ class GameLogicProcess:
                                         self.player_position[0], 
                                         self.player_position[1], 
                                         50, 80)
+        # Add player-specific attributes
+        self.player.on_ground = True
         
         # Create platforms
         screen_width = 1200
@@ -237,9 +240,67 @@ class GameLogicProcess:
             while not self.render_to_logic_queue.empty():
                 command = self.render_to_logic_queue.get_nowait()
                 
-                if command.get('type') == 'input':
-                    keys = command.get('keys', {})
+                # Skip non-input commands (e.g., exit_game commands are handled in run())
+                if command.get('type') != 'input':
+                    # Put it back in the queue for the run method to process
+                    self.render_to_logic_queue.put(command)
+                    continue
+                
+                keys = command.get('keys', {})
+                key_press = command.get('key_press', {})  # Get the just-pressed keys
+                
+                # Get current game state
+                with self.game_state_lock:
+                    current_state = self.game_state.value
+                
+                # Handle game over state input
+                if current_state == GameState.GAME_OVER.value:
+                    # SPACE to restart the game - use key_press to detect a new press
+                    if key_press.get(pygame.K_SPACE):
+                        # Reset game state and restart
+                        self.reset_game()
+                        return
                     
+                    # ESC to quit the game - use key_press to detect a new press
+                    if key_press.get(pygame.K_ESCAPE):
+                        # Instead of calling pygame.quit() and sys.exit() directly,
+                        # put an exit command in the queue for the main thread to process
+                        self.render_to_logic_queue.put({'type': 'exit_game'})
+                        return
+                    
+                    # Don't process other inputs in game over state
+                    continue
+                
+                # Handle menu state input
+                if current_state == GameState.MENU.value:
+                    # SPACE to start the game - use key_press to detect a new press
+                    if key_press.get(pygame.K_SPACE):
+                        with self.game_state_lock:
+                            self.game_state.value = GameState.PLAYING.value
+                        return
+                    
+                    # ESC to quit the game - use key_press to detect a new press
+                    if key_press.get(pygame.K_ESCAPE):
+                        # Use the exit command queue approach here too
+                        self.render_to_logic_queue.put({'type': 'exit_game'})
+                        return
+                    
+                    # Don't process other inputs in menu state
+                    continue
+                
+                # Handle pause state input
+                if current_state == GameState.PAUSED.value:
+                    # ESC to toggle pause - use key_press to detect a new press
+                    if key_press.get(pygame.K_ESCAPE):
+                        with self.game_state_lock:
+                            self.game_state.value = GameState.PLAYING.value
+                        return
+                    
+                    # Don't process other inputs in paused state
+                    continue
+                
+                # Only process gameplay inputs in PLAYING state
+                if current_state == GameState.PLAYING.value:
                     # Move left
                     if keys.get(pygame.K_LEFT):
                         self.player.velocity_x = -PLAYER_SPEED
@@ -251,7 +312,7 @@ class GameLogicProcess:
                     else:
                         self.player.velocity_x = 0
                     
-                    # Jump
+                    # Jump - continue using continuous keys for jumping
                     if keys.get(pygame.K_SPACE) and self.player.on_ground:
                         self.player.velocity_y = -JUMP_POWER
                         self.player.on_ground = False
@@ -260,16 +321,18 @@ class GameLogicProcess:
                     if keys.get(pygame.K_z) or keys.get(pygame.K_x):
                         self.fire_projectile()
                     
-                    # Pause
-                    if keys.get(pygame.K_ESCAPE):
+                    # Pause - use key_press to detect a new press
+                    if key_press.get(pygame.K_ESCAPE):
                         with self.game_state_lock:
-                            if self.game_state.value == GameState.PLAYING.value:
-                                self.game_state.value = GameState.PAUSED.value
-                            elif self.game_state.value == GameState.PAUSED.value:
-                                self.game_state.value = GameState.PLAYING.value
+                            self.game_state.value = GameState.PAUSED.value
         except Exception as e:
             print(f"Error processing input: {e}")
         
+        # In PLAYING state, continue updating player physics
+        with self.game_state_lock:
+            if self.game_state.value != GameState.PLAYING.value:
+                return
+                
         # Apply gravity
         self.player.velocity_y += GRAVITY
         
@@ -430,6 +493,20 @@ class GameLogicProcess:
         clock = pygame.time.Clock()
         
         while True:
+            # Check for special commands
+            try:
+                if not self.render_to_logic_queue.empty():
+                    command = self.render_to_logic_queue.get_nowait()
+                    if command.get('type') == 'exit_game':
+                        print("Received exit command. Terminating game...")
+                        pygame.quit()
+                        sys.exit(0)
+                    else:
+                        # Put other commands back in the queue for update_player to handle
+                        self.render_to_logic_queue.put(command)
+            except Exception as e:
+                print(f"Error checking for exit command: {e}")
+            
             # Get current game state
             with self.game_state_lock:
                 current_state = self.game_state.value
@@ -443,6 +520,58 @@ class GameLogicProcess:
                 
                 # Send updated state to renderer
                 self.update_game_state()
+            else:
+                # For non-playing states, still process player input
+                # This ensures restart/exit functionality works
+                self.update_player()
+                
+                # Also send state updates to keep renderer in sync
+                self.update_game_state()
             
             # Maintain consistent frame rate
-            clock.tick(FPS) 
+            clock.tick(FPS)
+    
+    def reset_game(self):
+        """Reset the game to initial state for restart functionality"""
+        print("Restarting game...")
+        
+        # Screen dimensions
+        screen_width = 1200  # Same as WINDOW_WIDTH
+        screen_height = 800  # Same as WINDOW_HEIGHT
+        
+        # Reset all entities
+        with self.entities_lock:
+            # Clear all entity collections
+            self.entities.clear()
+            self.platforms.clear()
+            self.enemies.clear()
+            self.projectiles.clear()
+            self.powerups.clear()
+            
+            # Reset entity counter
+            self.entity_id_counter = 0
+        
+        # Reset player stats
+        with self.player_score_lock:
+            self.player_score.value = 0
+            
+        with self.player_health_lock:
+            self.player_health.value = 100
+            
+        with self.player_position_lock:
+            self.player_position[0] = screen_width // 4
+            self.player_position[1] = screen_height // 2
+        
+        # Reset wave counter
+        with self.wave_lock:
+            self.wave_number = 1
+            
+        # Reset spawn timer
+        self.last_spawn_time = time.time()
+        
+        # Restart the game by reinitializing entities
+        self.initialize_game()
+        
+        # Set game state to playing
+        with self.game_state_lock:
+            self.game_state.value = GameState.PLAYING.value 

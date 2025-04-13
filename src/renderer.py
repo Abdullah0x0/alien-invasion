@@ -73,6 +73,7 @@ class RendererProcess:
         
         # Input state
         self.keys_pressed = {}
+        self.keys_just_pressed = {}  # Track keys that were just pressed this frame
         
         # Background setup
         self.stars = self.generate_stars(150)
@@ -567,19 +568,34 @@ class RendererProcess:
     
     def handle_events(self):
         """Handle pygame events"""
+        # Reset keys_just_pressed every frame
+        self.keys_just_pressed = {}
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                # Send an exit command to the logic process
+                self.render_to_logic_queue.put({'type': 'exit_game'})
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 self.keys_pressed[event.key] = True
+                self.keys_just_pressed[event.key] = True  # Mark this key as just pressed this frame
+                
+                # Check for ESC in game over state to exit directly from renderer too
+                with self.game_state_lock:
+                    if self.game_state.value == GameState.GAME_OVER.value and event.key == pygame.K_ESCAPE:
+                        # Send an exit command to the logic process
+                        self.render_to_logic_queue.put({'type': 'exit_game'})
+                        pygame.quit()
+                        sys.exit()
             elif event.type == pygame.KEYUP:
                 self.keys_pressed[event.key] = False
         
         # Send current input state to game logic
         input_data = {
             'type': 'input',
-            'keys': self.keys_pressed
+            'keys': self.keys_pressed,
+            'key_press': self.keys_just_pressed  # Send the just-pressed keys separately
         }
         self.render_to_logic_queue.put(input_data)
     
@@ -590,7 +606,6 @@ class RendererProcess:
                 game_data = self.logic_to_render_queue.get_nowait()
                 self.entities = game_data.get('entities', [])
                 self.current_wave = game_data.get('wave', 1)
-                self.player_facing_right = game_data.get('player_facing_right', True)
                 
                 # Comment out debug prints
                 # Debug: Count entities by type
@@ -711,11 +726,10 @@ class RendererProcess:
             b = min(255, max(0, color[2] + random.randint(-20, 20)))
             self.explosion_particles.append((x, y, (r, g, b), size, lifetime, dx, dy))
     
-    def create_projectile_trail(self, x, y, direction=1):
+    def create_projectile_trail(self, x, y):
         """Create particle trail behind projectiles"""
         for _ in range(2):
-            # Create trail moving in opposite direction of projectile
-            dx = random.random() * 0.5 * -direction - 1.0 * direction  # Trail moves opposite to projectile direction
+            dx = random.random() * 0.5 - 1.5  # Move backward
             dy = random.random() * 1 - 0.5  # Slight vertical spread
             size = random.random() * 2 + 1
             lifetime = random.randint(5, 15)
@@ -754,14 +768,8 @@ class RendererProcess:
             height = entity['height']
             
             if entity_type == EntityType.PLAYER.value:
-                # Get the current animation frame
+                # Draw current animation frame
                 player_frame = self.player_frames[self.player_frame_idx]
-                
-                # Flip the player sprite if facing left
-                if not self.player_facing_right:
-                    player_frame = pygame.transform.flip(player_frame, True, False)
-                
-                # Draw player
                 self.screen.blit(player_frame, (x, y))
                 
                 # Draw jet flame behind player (with flickering effect)
@@ -771,18 +779,7 @@ class RendererProcess:
                         self.player_jet_flame,
                         (int(30 * flame_scale), int(20 * flame_scale))
                     )
-                    
-                    # Position flame based on direction
-                    if self.player_facing_right:
-                        flame_pos = (x - 25, y + 30)  # Original position for right-facing
-                    else:
-                        flame_pos = (x + 45, y + 30)  # Adjusted position for left-facing
-                    
-                    # Flip flame if facing left
-                    if not self.player_facing_right:
-                        flame_surface = pygame.transform.flip(flame_surface, True, False)
-                    
-                    self.screen.blit(flame_surface, flame_pos)
+                    self.screen.blit(flame_surface, (x - 25, y + 30))
             
             elif entity_type == EntityType.PLATFORM.value:
                 # We need to stretch the platform sprite to match the size
@@ -840,9 +837,6 @@ class RendererProcess:
                     pygame.draw.rect(self.screen, GREEN, (x + 5, y - 5, current_width, 3))
             
             elif entity_type == EntityType.PROJECTILE.value:
-                # Check if projectile has direction
-                direction = entity.get('direction', 1)  # Default to right
-                
                 # Add a glowing effect to projectiles
                 glow_size = 20
                 glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
@@ -859,19 +853,11 @@ class RendererProcess:
                 glow_y = y - int(glow_size/2) + 5
                 self.screen.blit(glow_surf, (glow_x, glow_y))
                 
-                # Get the projectile surface
-                projectile_surf = self.assets['projectile']
-                
-                # Flip projectile if going left
-                if direction < 0:
-                    projectile_surf = pygame.transform.flip(projectile_surf, True, False)
-                
                 # Draw the actual projectile
-                self.screen.blit(projectile_surf, (x, y))
+                self.screen.blit(self.assets['projectile'], (x, y))
                 
-                # Create particle trail with adjusted position based on direction
-                trail_x = x + (0 if direction < 0 else 5)
-                self.create_projectile_trail(trail_x, y + 5, direction)
+                # Create particle trail
+                self.create_projectile_trail(x + 5, y + 5)
             
             elif entity_type == EntityType.POWERUP.value:
                 powerup_type = entity.get('powerup_type', 1)

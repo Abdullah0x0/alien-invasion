@@ -56,6 +56,7 @@ def main():
             logic_to_render_queue, render_to_logic_queue
         )
     )
+    logic_process.daemon = True  # Make the logic process a daemon so it exits when main exits
     
     render_process = Process(
         target=RendererProcess,
@@ -66,6 +67,7 @@ def main():
             logic_to_render_queue, render_to_logic_queue
         )
     )
+    render_process.daemon = True  # Make the render process a daemon so it exits when main exits
     
     # Start processes
     logic_process.start()
@@ -73,13 +75,18 @@ def main():
     
     print(f"Game processes started with PIDs: Logic={logic_process.pid}, Renderer={render_process.pid}")
     
-    # Wait for processes to complete
-    logic_process.join()
-    render_process.join()
-    
-    # Clean up
-    pygame.quit()
-    print("Game shut down successfully")
+    try:
+        # Wait for processes to complete
+        logic_process.join()
+        render_process.join()
+    except KeyboardInterrupt:
+        print("Game interrupted by user.")
+    except Exception as e:
+        print(f"Error in game execution: {e}")
+    finally:
+        # Clean up
+        pygame.quit()
+        print("Game shut down successfully")
 
 if __name__ == "__main__":
     main() 
