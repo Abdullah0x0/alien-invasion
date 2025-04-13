@@ -75,6 +75,14 @@ class RendererProcess:
         self.keys_pressed = {}
         self.keys_just_pressed = {}  # Track keys that were just pressed this frame
         
+        # Display flags
+        self.show_process_info = False  # Toggle for process info display
+        
+        # Performance metrics
+        self.fps_samples = []
+        self.frame_times = []
+        self.last_frame_time = time.time()
+        
         # Background setup
         self.stars = self.generate_stars(150)
         self.far_stars = self.generate_stars(100)
@@ -581,6 +589,11 @@ class RendererProcess:
                 self.keys_pressed[event.key] = True
                 self.keys_just_pressed[event.key] = True  # Mark this key as just pressed this frame
                 
+                # Toggle process info display with P key
+                if event.key == pygame.K_p:
+                    self.show_process_info = not self.show_process_info
+                    print(f"Process info display: {'ON' if self.show_process_info else 'OFF'}")
+                
                 # Check for ESC in game over state to exit directly from renderer too
                 with self.game_state_lock:
                     if self.game_state.value == GameState.GAME_OVER.value and event.key == pygame.K_ESCAPE:
@@ -886,305 +899,272 @@ class RendererProcess:
                 self.screen.blit(powerup_frame, (x, y + hover_offset))
     
     def draw_ui(self):
-        """Draw user interface elements with modern styling"""
-        # Get synchronized values
-        with self.player_score_lock:
-            score = self.player_score.value
+        """Draw game UI elements"""
+        # Get current game state
+        with self.game_state_lock:
+            current_state = self.game_state.value
         
+        # Don't draw UI on menu or game over screens
+        if current_state == GameState.MENU.value or current_state == GameState.GAME_OVER.value:
+            return
+        
+        # Draw score
+        with self.player_score_lock:
+            score_text = f"SCORE: {self.player_score.value}"
+        score_surface = self.main_font.render(score_text, True, WHITE)
+        self.screen.blit(score_surface, (20, 20))
+        
+        # Draw wave information
+        wave_text = f"WAVE: {self.current_wave}"
+        wave_surface = self.main_font.render(wave_text, True, WHITE)
+        self.screen.blit(wave_surface, (self.width - wave_surface.get_width() - 20, 20))
+        
+        # Draw health bar
         with self.player_health_lock:
             health = self.player_health.value
         
-        with self.game_state_lock:
-            game_state = self.game_state.value
-        
-        # Draw score with glow effect
-        score_text = f"SCORE: {score}"
-        # Shadow text
-        shadow_surf = self.main_font.render(score_text, True, (0, 0, 0))
-        self.screen.blit(shadow_surf, (12, 12))
-        # Actual text
-        score_surf = self.main_font.render(score_text, True, (200, 200, 255))
-        self.screen.blit(score_surf, (10, 10))
-        
-        # Draw health bar with modern styling
-        # Background panel with transparency
-        panel_surface = pygame.Surface((220, 30), pygame.SRCALPHA)
-        panel_surface.fill((0, 0, 0, 128))
-        self.screen.blit(panel_surface, (10, 50))
-        
-        # Border
-        pygame.draw.rect(self.screen, WHITE, (10, 50, 220, 30), 1)
+        health_text = f"HEALTH: {health}"
+        health_surface = self.main_font.render(health_text, True, WHITE)
+        self.screen.blit(health_surface, (20, 60))
         
         # Health bar background
-        pygame.draw.rect(self.screen, (50, 50, 50), (20, 55, 200, 20))
-        
-        # Health gradient (changes color based on health)
-        health_width = int(200 * (health / 100))
-        if health > 70:
+        pygame.draw.rect(self.screen, GRAY, (20, 100, 200, 20))
+        # Health bar fill
+        health_width = int(health / 100 * 200)
+        if health > 60:
             health_color = GREEN
         elif health > 30:
             health_color = YELLOW
         else:
             health_color = RED
+        pygame.draw.rect(self.screen, health_color, (20, 100, health_width, 20))
+        
+        # Controls reminder
+        controls_text = "CONTROLS: ARROWS=Move  UP=Jump  Z/X=Attack  ESC=Pause  P=Toggle Info"
+        controls_surface = self.small_font.render(controls_text, True, WHITE)
+        self.screen.blit(controls_surface, (20, self.height - 30))
+        
+        # If paused, show pause icon
+        if current_state == GameState.PAUSED.value:
+            pause_text = "PAUSED"
+            pause_surface = self.main_font.render(pause_text, True, WHITE)
+            text_width = pause_surface.get_width()
             
-            # Flashing effect for low health
-            if pygame.time.get_ticks() % 1000 < 500:
-                health_color = (255, 150, 150)
+            # Background rectangle
+            pygame.draw.rect(self.screen, (0, 0, 0, 150), 
+                             (self.width // 2 - text_width // 2 - 20, 
+                              self.height // 2 - 30, 
+                              text_width + 40, 60))
+            
+            # Text
+            self.screen.blit(pause_surface, 
+                           (self.width // 2 - text_width // 2, 
+                            self.height // 2 - pause_surface.get_height() // 2))
         
-        # Draw the health bar with a gradient effect
-        for i in range(health_width):
-            # Create a gradient from left to right
-            gradient_factor = i / 200
-            color = (
-                int(health_color[0] * (0.8 + gradient_factor * 0.2)),
-                int(health_color[1] * (0.8 + gradient_factor * 0.2)),
-                int(health_color[2] * (0.8 + gradient_factor * 0.2))
-            )
-            pygame.draw.line(self.screen, color, (20 + i, 55), (20 + i, 74))
-        
-        # Health text
-        health_text = f"HEALTH: {health}%"
-        health_surf = self.small_font.render(health_text, True, WHITE)
-        text_x = 20 + (200 - health_surf.get_width()) // 2
-        self.screen.blit(health_surf, (text_x, 58))
-        
-        # Draw wave number with a badge style
-        wave_badge = pygame.Surface((150, 40), pygame.SRCALPHA)
-        pygame.draw.rect(wave_badge, (0, 0, 0, 170), (0, 0, 150, 40), border_radius=10)
-        pygame.draw.rect(wave_badge, BLUE, (0, 0, 150, 40), 2, border_radius=10)
-        
-        wave_text = f"WAVE {self.current_wave}"
-        wave_surf = self.main_font.render(wave_text, True, WHITE)
-        badge_x = self.width - 160
-        wave_badge.blit(wave_surf, ((150 - wave_surf.get_width()) // 2, (40 - wave_surf.get_height()) // 2))
-        self.screen.blit(wave_badge, (badge_x, 10))
-        
-        # Draw animated wave indicator
-        pulse_size = int(5 + 3 * math.sin(pygame.time.get_ticks() * 0.01))
-        pygame.draw.circle(self.screen, BLUE, (badge_x - 10, 30), pulse_size)
-        
-        # Draw game state overlay
-        if game_state == GameState.MENU.value:
-            self.draw_menu()
-        elif game_state == GameState.PAUSED.value:
-            self.draw_pause_screen()
-        elif game_state == GameState.GAME_OVER.value:
-            self.draw_game_over()
+        # Process info display (when toggled on with P key)
+        if self.show_process_info:
+            # Update performance metrics
+            current_time = time.time()
+            frame_time = current_time - self.last_frame_time
+            self.last_frame_time = current_time
+            
+            self.frame_times.append(frame_time)
+            if len(self.frame_times) > 60:  # Keep only last 60 frames
+                self.frame_times.pop(0)
+            
+            avg_frame_time = sum(self.frame_times) / len(self.frame_times)
+            current_fps = 1.0 / max(avg_frame_time, 0.0001)  # Avoid division by zero
+            
+            # Background for process info
+            info_bg_rect = pygame.Rect(self.width - 300, 60, 280, 180)
+            pygame.draw.rect(self.screen, (0, 0, 0, 150), info_bg_rect)
+            pygame.draw.rect(self.screen, GRAY, info_bg_rect, 1)
+            
+            # Display info
+            y_offset = 70
+            info_texts = [
+                f"FPS: {current_fps:.1f}",
+                f"Frame Time: {avg_frame_time*1000:.1f} ms",
+                f"Entities: {len(self.entities)}",
+                f"Particles: {len(self.projectile_particles) + len(self.explosion_particles)}",
+                f"Render Queue: {self.logic_to_render_queue.qsize()}"
+            ]
+            
+            for info in info_texts:
+                info_surface = self.small_font.render(info, True, WHITE)
+                self.screen.blit(info_surface, (self.width - 290, y_offset))
+                y_offset += 25
+            
+            # Memory info (if available)
+            try:
+                import psutil
+                process = psutil.Process()
+                memory_info = process.memory_info()
+                memory_mb = memory_info.rss / 1024 / 1024
+                cpu_percent = process.cpu_percent(interval=None) / psutil.cpu_count()
+                
+                memory_text = f"Memory: {memory_mb:.1f} MB"
+                cpu_text = f"CPU: {cpu_percent:.1f}%"
+                
+                mem_surface = self.small_font.render(memory_text, True, WHITE)
+                cpu_surface = self.small_font.render(cpu_text, True, WHITE)
+                
+                self.screen.blit(mem_surface, (self.width - 290, y_offset))
+                y_offset += 25
+                self.screen.blit(cpu_surface, (self.width - 290, y_offset))
+            except (ImportError, AttributeError):
+                # psutil not available or error accessing metrics
+                no_metrics = self.small_font.render("System metrics unavailable", True, GRAY)
+                self.screen.blit(no_metrics, (self.width - 290, y_offset))
     
     def draw_menu(self):
-        """Draw main menu screen with visual effects"""
-        # Overlay with gradient
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for y in range(WINDOW_HEIGHT):
-            alpha = min(210, 100 + int(y * 0.15))
-            # Create proper RGBA color
-            gradient_color = (0, 0, 0, alpha)
-            pygame.draw.line(overlay, gradient_color, (0, y), (WINDOW_WIDTH, y))
+        """Draw the game menu screen"""
+        # Opaque overlay
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
         
-        # Title with glow effect
-        title_glow_surf = pygame.Surface((400, 100), pygame.SRCALPHA)
+        # Title
         title_text = "ALIEN INVASION"
-        title_size = 60
-        title_font = pygame.font.SysFont('Arial', title_size, bold=True)
+        title_surf = pygame.font.SysFont('Arial', 72, bold=True).render(title_text, True, LIGHT_BLUE)
+        self.screen.blit(title_surf, (self.width//2 - title_surf.get_width()//2, 150))
         
-        # Draw glow
-        glow_size = 10
-        for i in range(glow_size, 0, -2):
-            alpha = 10 + (glow_size - i) * 5
-            # Create proper RGBA color
-            glow_color = (0, 100, 255, alpha)
-            title_glow = title_font.render(title_text, True, (0, 100, 255))
-            
-            # Create a surface with alpha
-            glow_surf = pygame.Surface(title_glow.get_size(), pygame.SRCALPHA)
-            glow_surf.fill((0, 100, 255, alpha))
-            glow_surf.blit(title_glow, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-            
-            title_glow_surf.blit(
-                glow_surf, 
-                ((400 - title_glow.get_width()) // 2 - i // 2, (100 - title_glow.get_height()) // 2 - i // 2)
-            )
+        # Subtitle
+        subtitle_text = "A Game about Operating System Concepts"
+        subtitle_surf = self.main_font.render(subtitle_text, True, WHITE)
+        self.screen.blit(subtitle_surf, (self.width//2 - subtitle_surf.get_width()//2, 230))
         
-        # Main title
-        title = title_font.render(title_text, True, (200, 200, 255))
-        title_glow_surf.blit(title, ((400 - title.get_width()) // 2, (100 - title.get_height()) // 2))
-        
-        # Position and draw title
-        title_y = WINDOW_HEIGHT // 4
-        title_x = (WINDOW_WIDTH - 400) // 2
-        self.screen.blit(title_glow_surf, (title_x, title_y))
-        
-        # Subtitle with animation
-        subtitle_y = title_y + 120
-        subtitle_wave = int(5 * math.sin(pygame.time.get_ticks() * 0.005))
-        subtitle = self.main_font.render("Press SPACE to Start", True, (150, 150, 255))
-        self.screen.blit(subtitle, (WINDOW_WIDTH // 2 - subtitle.get_width() // 2, subtitle_y + subtitle_wave))
-        
-        # Controls panel
-        panel_y = subtitle_y + 100
-        panel = pygame.Surface((500, 200), pygame.SRCALPHA)
-        # Create proper RGBA color for panel
-        panel_bg_color = (0, 0, 50, 200)
-        panel_border_color = (100, 100, 255, 255)
-        pygame.draw.rect(panel, panel_bg_color, (0, 0, 500, 200), border_radius=20)
-        pygame.draw.rect(panel, panel_border_color, (0, 0, 500, 200), 2, border_radius=20)
-        
-        # Panel header
-        header = self.main_font.render("CONTROLS", True, WHITE)
-        panel.blit(header, ((500 - header.get_width()) // 2, 20))
-        
-        # Panel content - controls
-        controls = [
-            ("ARROW KEYS", "Move"),
-            ("SPACE", "Jump"),
-            ("Z / X", "Attack"),
-            ("ESC", "Pause")
+        # Instructions
+        instructions = [
+            "CONTROLS:",
+            "ARROWS: Move player (← →) and Jump (↑)",
+            "Z/X: Attack",
+            "ESC: Pause/Quit",
+            "P: Toggle process info display",
+            "",
+            "Press SPACE to Start"
         ]
         
-        for i, (key, action) in enumerate(controls):
-            y_pos = 70 + i * 30
+        y_pos = 350
+        for instruction in instructions:
+            if instruction == "Press SPACE to Start":
+                # Make it pulse
+                pulse = math.sin(pygame.time.get_ticks() * 0.005) * 0.3 + 0.7
+                color = (int(255 * pulse), int(255 * pulse), int(100 * pulse))
+                text_surf = self.main_font.render(instruction, True, color)
+                y_pos += 30  # Extra space before start prompt
+            else:
+                text_surf = self.small_font.render(instruction, True, WHITE)
             
-            # Key box
-            key_surf = self.small_font.render(key, True, BLACK)
-            key_box = pygame.Surface((150, 25), pygame.SRCALPHA)
-            pygame.draw.rect(key_box, (200, 200, 255), (0, 0, 150, 25), border_radius=5)
-            key_box.blit(key_surf, ((150 - key_surf.get_width()) // 2, (25 - key_surf.get_height()) // 2))
-            panel.blit(key_box, (50, y_pos))
-            
-            # Action text
-            action_surf = self.small_font.render(action, True, WHITE)
-            panel.blit(action_surf, (220, y_pos + 5))
-        
-        # Draw panel
-        self.screen.blit(panel, (WINDOW_WIDTH // 2 - 250, panel_y))
-    
-    def draw_pause_screen(self):
-        """Draw pause screen overlay with visual effects"""
-        # Create blur effect by drawing the game at reduced alpha
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        # Use proper RGBA color
-        overlay_color = (0, 0, 30, 200)
-        overlay.fill(overlay_color)
-        self.screen.blit(overlay, (0, 0))
-        
-        # Pause text with pulsing effect
-        scale = 1.0 + 0.1 * math.sin(pygame.time.get_ticks() * 0.003)
-        pause_font = pygame.font.SysFont('Arial', int(80 * scale), bold=True)
-        pause_text = pause_font.render("PAUSED", True, WHITE)
-        text_x = WINDOW_WIDTH // 2 - pause_text.get_width() // 2
-        text_y = WINDOW_HEIGHT // 3 - pause_text.get_height() // 2
-        
-        # Draw text shadow
-        shadow = pause_font.render("PAUSED", True, (0, 0, 0))
-        self.screen.blit(shadow, (text_x + 5, text_y + 5))
-        self.screen.blit(pause_text, (text_x, text_y))
-        
-        # Continue text with bouncing arrow
-        continue_text = self.small_font.render("Press ESC to Continue", True, (200, 200, 255))
-        arrow_offset = int(5 * math.sin(pygame.time.get_ticks() * 0.01))
-        
-        # Draw arrow
-        arrow_points = [
-            (WINDOW_WIDTH // 2 - 50, WINDOW_HEIGHT // 2 + 50 + arrow_offset),
-            (WINDOW_WIDTH // 2 - 40, WINDOW_HEIGHT // 2 + 60 + arrow_offset),
-            (WINDOW_WIDTH // 2 - 45, WINDOW_HEIGHT // 2 + 60 + arrow_offset),
-            (WINDOW_WIDTH // 2 - 45, WINDOW_HEIGHT // 2 + 70 + arrow_offset),
-            (WINDOW_WIDTH // 2 - 55, WINDOW_HEIGHT // 2 + 70 + arrow_offset),
-            (WINDOW_WIDTH // 2 - 55, WINDOW_HEIGHT // 2 + 60 + arrow_offset),
-            (WINDOW_WIDTH // 2 - 60, WINDOW_HEIGHT // 2 + 60 + arrow_offset),
-        ]
-        pygame.draw.polygon(self.screen, (200, 200, 255), arrow_points)
-        
-        # Draw text
-        self.screen.blit(continue_text, (WINDOW_WIDTH // 2 - continue_text.get_width() // 2, WINDOW_HEIGHT // 2 + 50))
+            self.screen.blit(text_surf, (self.width//2 - text_surf.get_width()//2, y_pos))
+            y_pos += 30
     
     def draw_game_over(self):
-        """Draw game over screen with visual effects"""
-        # Darken the screen with gradient
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
-        for y in range(WINDOW_HEIGHT):
-            alpha = min(220, 180 + int(y * 0.1))
-            # Create proper RGBA color
-            gradient_color = (50, 0, 0, alpha)
-            pygame.draw.line(overlay, gradient_color, (0, y), (WINDOW_WIDTH, y))
+        """Draw the game over screen"""
+        # Opaque overlay
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
         self.screen.blit(overlay, (0, 0))
         
+        # Title
+        title_text = "GAME OVER"
+        title_surf = pygame.font.SysFont('Arial', 72, bold=True).render(title_text, True, RED)
+        self.screen.blit(title_surf, (self.width//2 - title_surf.get_width()//2, 150))
+        
+        # Score
         with self.player_score_lock:
             score = self.player_score.value
         
-        # Game over text with animation
-        game_over_font = pygame.font.SysFont('Arial', 80, bold=True)
-        for i in range(4, 0, -1):
-            # Shadow layers with proper RGBA colors
-            alpha = 40 * i
-            shadow_color = (255, 0, 0, alpha)
-            
-            # Create a surface with alpha for text shadow
-            shadow_text = game_over_font.render("GAME OVER", True, RED)
-            shadow_surf = pygame.Surface(shadow_text.get_size(), pygame.SRCALPHA)
-            shadow_surf.fill((255, 0, 0, alpha))
-            shadow_surf.blit(shadow_text, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-            
-            self.screen.blit(
-                shadow_surf, 
-                (WINDOW_WIDTH // 2 - shadow_text.get_width() // 2 + i, WINDOW_HEIGHT // 3 + i)
-            )
+        score_text = f"FINAL SCORE: {score}"
+        score_surf = self.main_font.render(score_text, True, WHITE)
+        self.screen.blit(score_surf, (self.width//2 - score_surf.get_width()//2, 250))
         
-        # Main text
-        game_over_text = game_over_font.render("GAME OVER", True, RED)
-        self.screen.blit(game_over_text, (WINDOW_WIDTH // 2 - game_over_text.get_width() // 2, WINDOW_HEIGHT // 3))
+        # Wave reached
+        wave_text = f"WAVE REACHED: {self.current_wave}"
+        wave_surf = self.main_font.render(wave_text, True, WHITE)
+        self.screen.blit(wave_surf, (self.width//2 - wave_surf.get_width()//2, 300))
         
-        # Score panel
-        panel = pygame.Surface((400, 150), pygame.SRCALPHA)
-        # Create proper RGBA color for panel background
-        panel_bg_color = (30, 0, 0, 220)
-        pygame.draw.rect(panel, panel_bg_color, (0, 0, 400, 150), border_radius=15)
-        pygame.draw.rect(panel, RED, (0, 0, 400, 150), 3, border_radius=15)
+        # Instructions - with pulse effect
+        pulse = math.sin(pygame.time.get_ticks() * 0.005) * 0.3 + 0.7
+        color = (int(255 * pulse), int(255 * pulse), int(100 * pulse))
         
-        # Final score text
-        score_text = self.main_font.render("FINAL SCORE", True, WHITE)
-        panel.blit(score_text, ((400 - score_text.get_width()) // 2, 30))
+        instructions = [
+            "Press SPACE to Restart",
+            "Press ESC to Quit"
+        ]
         
-        # Score value with highlight
-        score_value_font = pygame.font.SysFont('Arial', 50, bold=True)
-        score_value = score_value_font.render(str(score), True, (255, 255, 0))
-        panel.blit(score_value, ((400 - score_value.get_width()) // 2, 80))
+        y_pos = 400
+        for instruction in instructions:
+            text_surf = self.main_font.render(instruction, True, color)
+            self.screen.blit(text_surf, (self.width//2 - text_surf.get_width()//2, y_pos))
+            y_pos += 50
+    
+    def draw_pause_screen(self):
+        """Draw the pause screen overlay"""
+        # Create semi-transparent overlay
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 30, 180))
+        self.screen.blit(overlay, (0, 0))
         
-        # Draw panel
-        panel_y = WINDOW_HEIGHT // 2
-        self.screen.blit(panel, (WINDOW_WIDTH // 2 - 200, panel_y))
+        # Main pause text
+        pause_text = "PAUSED"
+        pause_surf = pygame.font.SysFont('Arial', 72, bold=True).render(pause_text, True, WHITE)
+        self.screen.blit(pause_surf, (self.width//2 - pause_surf.get_width()//2, 200))
         
-        # Restart/quit text with flashing effect
-        if pygame.time.get_ticks() % 1000 < 500:
-            restart_color = (255, 255, 255)
-        else:
-            restart_color = (200, 200, 200)
+        # Controls reminder
+        controls = [
+            "Press ESC to Resume",
+            "CONTROLS:",
+            "ARROWS: Move player (← →) and Jump (↑)",
+            "Z/X: Attack",
+            "P: Toggle process info display"
+        ]
         
-        restart_text = self.small_font.render("Press SPACE to Restart or ESC to Quit", True, restart_color)
-        self.screen.blit(restart_text, (WINDOW_WIDTH // 2 - restart_text.get_width() // 2, panel_y + 200))
+        y_pos = 300
+        for control in controls:
+            text_surf = self.small_font.render(control, True, WHITE)
+            self.screen.blit(text_surf, (self.width//2 - text_surf.get_width()//2, y_pos))
+            y_pos += 30
     
     def run(self):
-        """Main render loop"""
+        """Main rendering loop"""
         clock = pygame.time.Clock()
+        running = True
         
-        while True:
+        while running:
             # Handle events
             self.handle_events()
             
-            # Receive game state from logic process
+            # Receive updated game state from logic process
             self.receive_game_state()
+            
+            # Get current game state
+            with self.game_state_lock:
+                current_state = self.game_state.value
+            
+            # Clear screen and draw background
+            self.screen.fill(BLACK)
+            self.draw_background()
             
             # Update animations
             self.update_animations()
             
-            # Draw everything
-            self.draw_background()
+            # Draw game entities
             self.draw_entities()
+            
+            # Draw UI elements
             self.draw_ui()
+            
+            # Draw game state screens
+            if current_state == GameState.MENU.value:
+                self.draw_menu()
+            elif current_state == GameState.GAME_OVER.value:
+                self.draw_game_over()
+            elif current_state == GameState.PAUSED.value:
+                self.draw_pause_screen()
             
             # Update display
             pygame.display.flip()
             
-            # Cap the frame rate
+            # Cap to 60 FPS
             clock.tick(FPS) 

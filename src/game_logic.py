@@ -312,8 +312,8 @@ class GameLogicProcess:
                     else:
                         self.player.velocity_x = 0
                     
-                    # Jump - continue using continuous keys for jumping
-                    if keys.get(pygame.K_SPACE) and self.player.on_ground:
+                    # Jump - changed from SPACE to UP arrow key
+                    if keys.get(pygame.K_UP) and self.player.on_ground:
                         self.player.velocity_y = -JUMP_POWER
                         self.player.on_ground = False
                     
