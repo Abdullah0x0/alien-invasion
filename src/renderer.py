@@ -60,6 +60,13 @@ class RendererProcess:
         pygame.display.set_caption("Alien Invasion")
         self.clock = pygame.time.Clock()
         
+        # Initialize pygame mixer for sound
+        pygame.mixer.init()
+        
+        # Sound effects dictionary
+        self.sounds = {}
+        self.load_sounds()
+        
         # Initialize fonts
         pygame.font.init()
         self.main_font = pygame.font.SysFont('Arial', 30)
@@ -145,6 +152,39 @@ class RendererProcess:
         
         # Start the game loop
         self.run()
+    
+    def load_sounds(self):
+        """Load all game sound effects"""
+        sound_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'assets', 'sounds')
+        
+        # Dictionary of sound files
+        sound_files = {
+            'explosion': 'explosion.wav',
+            'shoot': 'shoot.wav',
+            'powerup': 'powerup.wav',
+            'level_up': 'level_up.wav',
+            'menu_select': 'menu_select.wav',
+            'pause': 'pause.wav',
+            'jump': 'jump.wav',
+            'game_over': 'game_over.wav',
+            'hurt': 'hurt.wav',
+            'jet': 'jet.wav'
+        }
+        
+        # Load each sound file
+        for sound_name, file_name in sound_files.items():
+            try:
+                sound_path = os.path.join(sound_dir, file_name)
+                self.sounds[sound_name] = pygame.mixer.Sound(sound_path)
+                # Set appropriate volume levels
+                if sound_name == 'explosion':
+                    self.sounds[sound_name].set_volume(0.4)
+                elif sound_name == 'shoot':
+                    self.sounds[sound_name].set_volume(0.3)
+                else:
+                    self.sounds[sound_name].set_volume(0.5)
+            except Exception as e:
+                print(f"Error loading sound {sound_name}: {e}")
     
     def load_assets(self):
         """Load game assets and create sprites"""
@@ -1045,6 +1085,13 @@ class RendererProcess:
         center_x = x + 30  # Assuming enemy width is 60
         center_y = y + 30  # Assuming enemy height is 60
         
+        # Play explosion sound with slight random pitch variation for more variety
+        if 'explosion' in self.sounds:
+            # Scale volume based on enemy type and wave (bigger explosions = louder sound)
+            volume = min(1.0, 0.3 + (enemy_type * 0.1) + (wave * 0.05))
+            self.sounds['explosion'].set_volume(volume)
+            self.sounds['explosion'].play()
+        
         # Create the main explosion with color based on enemy type and wave
         if enemy_type == 1:
             # Base color based on wave
@@ -1535,7 +1582,7 @@ class RendererProcess:
         
         # Enhanced Controls Display
         controls_bg_height = 60
-        controls_bg_width = 950  # Increase width from 750 to 950 to fully accommodate all controls
+        controls_bg_width = 790  # Increase width from 750 to 950 to fully accommodate all controls
         controls_bg_rect = pygame.Rect(
             (self.width - controls_bg_width) // 2,
             self.height - controls_bg_height - 10,
