@@ -165,24 +165,29 @@ class RendererProcess:
             'level_up': 'level_up.wav',
             'menu_select': 'menu_select.wav',
             'pause': 'pause.wav',
-            'jump': 'jump.wav',
+            'hurt': 'hurt.wav',  # A more subtle sound for smaller enemies
             'game_over': 'game_over.wav',
-            'hurt': 'hurt.wav',
-            'jet': 'jet.wav'
+            'jet': 'jet.wav',
+            'enemy_defeat': 'hurt.wav'  # Temporarily use hurt.wav as enemy defeat sound
         }
         
         # Load each sound file
         for sound_name, file_name in sound_files.items():
             try:
                 sound_path = os.path.join(sound_dir, file_name)
-                self.sounds[sound_name] = pygame.mixer.Sound(sound_path)
-                # Set appropriate volume levels
-                if sound_name == 'explosion':
-                    self.sounds[sound_name].set_volume(0.4)
-                elif sound_name == 'shoot':
-                    self.sounds[sound_name].set_volume(0.3)
+                if os.path.exists(sound_path):
+                    self.sounds[sound_name] = pygame.mixer.Sound(sound_path)
+                    # Set appropriate volume levels
+                    if sound_name == 'explosion':
+                        self.sounds[sound_name].set_volume(0.4)
+                    elif sound_name == 'shoot':
+                        self.sounds[sound_name].set_volume(0.3)
+                    elif sound_name == 'enemy_defeat':
+                        self.sounds[sound_name].set_volume(0.35)  # Slightly higher volume for clarity
+                    else:
+                        self.sounds[sound_name].set_volume(0.5)
                 else:
-                    self.sounds[sound_name].set_volume(0.5)
+                    print(f"Sound file not found: {sound_path}")
             except Exception as e:
                 print(f"Error loading sound {sound_name}: {e}")
     
@@ -1085,12 +1090,17 @@ class RendererProcess:
         center_x = x + 30  # Assuming enemy width is 60
         center_y = y + 30  # Assuming enemy height is 60
         
-        # Play explosion sound with slight random pitch variation for more variety
-        if 'explosion' in self.sounds:
-            # Scale volume based on enemy type and wave (bigger explosions = louder sound)
-            volume = min(1.0, 0.3 + (enemy_type * 0.1) + (wave * 0.05))
-            self.sounds['explosion'].set_volume(volume)
-            self.sounds['explosion'].play()
+        # Play sound effects based on enemy type and wave
+        # Use more subtle sound for regular enemies, explosion only for elite enemies
+        if 'enemy_defeat' in self.sounds and 'explosion' in self.sounds:
+            if wave >= 3:  # Elite enemies get the big explosion sound
+                volume = min(1.0, 0.4 + (enemy_type * 0.05))  # Scale volume with enemy type
+                self.sounds['explosion'].set_volume(volume)
+                self.sounds['explosion'].play()
+            else:  # Regular enemies get the more subtle defeat sound
+                volume = min(1.0, 0.3 + (enemy_type * 0.05) + (wave * 0.02))
+                self.sounds['enemy_defeat'].set_volume(volume)
+                self.sounds['enemy_defeat'].play()
         
         # Create the main explosion with color based on enemy type and wave
         if enemy_type == 1:

@@ -41,6 +41,13 @@ A platform combat game where players fight against waves of aliens, demonstratin
    - Shared resource coordination
    - Safe process/thread termination
    - Asset loading and management
+   - Sound and music system with dynamic loading
+
+6. **Audio System**
+   - Sound effect management
+   - Dynamic sound loading and playback
+   - Context-sensitive audio feedback based on game events
+   - Adaptive volume based on event significance
 
 ## Technical Architecture
 
@@ -59,7 +66,8 @@ Main Process
 │   └── Physics Update Thread
 └── Renderer Process
     ├── Animation Thread
-    └── Particle System Thread
+    ├── Particle System Thread
+    └── Sound Effect System
 ```
 
 ## Setup and Installation
@@ -83,8 +91,8 @@ Main Process
 
 - **Arrow Keys** - Move the player
 - **Space** - Jump
-- **Z** - Fire projectile
-- **X** - Special attack
+- **Z** - Fire primary weapon
+- **X** - Fire secondary weapon
 - **ESC** - Pause game
 - **P** - Toggle process info display
 - **D** - Toggle platform reachability debug visualization
@@ -99,6 +107,79 @@ Main Process
 - Particle effects for visual feedback
 - Real-time process/thread statistics display
 - Smart platform generation ensuring reachability
+
+## Gameplay Details
+
+### Waves
+- The game features a progressive wave system that increases in difficulty
+- Each wave introduces more enemies with enhanced abilities
+- Wave progression is shown with on-screen notifications
+- Higher waves feature elite enemies with special abilities and increased health
+
+### Enemy Types
+1. **Basic Enemy (Type 1)**
+   - Circular shape with basic movement patterns
+   - Color changes from gray (wave 1) to red (wave 3+)
+   - Elite versions feature glowing auras and teeth
+
+2. **Tough Enemy (Type 2)**
+   - Square shape with higher health
+   - Color changes from dark blue (wave 1) to deep blue (wave 3+)
+   - Elite versions have armor plates and glowing eyes
+
+3. **Fast Enemy (Type 3)**
+   - Triangle shape with rapid movement
+   - Color changes from dark green (wave 1) to bright green (wave 3+)
+   - Enhanced versions leave motion trails
+
+### Weapons
+1. **Primary Weapon**
+   - Fast-firing blue energy bolts
+   - Quick cooldown and medium damage
+   - Visible blue particle trails
+
+2. **Secondary Weapon**
+   - Powerful green plasma balls
+   - Slower fire rate but higher damage
+   - Creates green particle effects
+
+### Power-ups
+1. **Health (Green)**
+   - Restores player health
+   - Green cross symbol with pulsing animation
+   - Creates expanding ring effect when collected
+
+2. **Score Boost (Yellow)**
+   - Grants bonus points
+   - Yellow star symbol with rotating animation
+   - Creates rising particle effects when collected
+
+3. **Invincibility (Blue)**
+   - Temporary invulnerability to damage
+   - Blue shield symbol with shield rotation effect
+   - Creates expanding blue rings when collected
+
+### Sound Effects
+- Context-sensitive enemy defeat sounds based on enemy type
+- Subtle sound for regular enemies, explosion sounds for elite enemies
+- Different sound effects for various game events (powerups, shooting, etc.)
+- Volume automatically adjusted based on event importance
+
+### Visual Effects
+- Dynamic particle systems for explosions and projectiles
+- Expanding ring animations for power-up collection
+- Enemy-specific death animations based on type and wave
+- Glowing effects for elite enemies
+- Parallax starfield background with nebula effects
+
+### Player Controls
+- **Arrow Keys** - Move the player and jump
+- **Z** - Fire primary weapon
+- **X** - Fire secondary weapon
+- **ESC** - Pause game
+- **P** - Toggle process info display
+- **D** - Toggle platform reachability debug visualization
+- **Q** - Quit game
 
 ## Implementation Details
 
