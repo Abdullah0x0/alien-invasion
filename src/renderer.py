@@ -37,6 +37,9 @@ class RendererProcess:
                 game_state_lock, player_score_lock, player_health_lock, player_position_lock,
                 logic_to_render_queue, render_to_logic_queue):
         """Initialize the renderer process"""
+        # Initialize debug flag for showing platform reachability
+        self.show_debug_info = False
+        
         self.width = width
         self.height = height
         self.game_state = game_state
@@ -52,51 +55,68 @@ class RendererProcess:
         self.logic_to_render_queue = logic_to_render_queue
         self.render_to_logic_queue = render_to_logic_queue
         
-        # Initialize pygame
-        pygame.init()
+        # Initialize pygame and create window
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Alien Invasion")
+        self.clock = pygame.time.Clock()
         
-        # Load fonts
-        self.main_font = pygame.font.SysFont('Arial', FONT_SIZE, bold=True)
-        self.small_font = pygame.font.SysFont('Arial', SMALL_FONT_SIZE)
+        # Initialize fonts
+        pygame.font.init()
+        self.main_font = pygame.font.SysFont('Arial', 30)
+        self.small_font = pygame.font.SysFont('Arial', 20)
+        self.title_font = pygame.font.SysFont('Arial', 60, bold=True)
         
-        # Load assets
-        self.load_assets()
-        
-        # Game entities
-        self.entities = []
-        self.current_wave = 1
-        
-        # Particle systems
-        self.projectile_particles = []
-        self.explosion_particles = []
-        
-        # Input state
-        self.keys_pressed = {}
-        self.keys_just_pressed = {}  # Track keys that were just pressed this frame
-        
-        # Display flags
-        self.show_process_info = False  # Toggle for process info display
-        
-        # Performance metrics
-        self.fps_samples = []
-        self.frame_times = []
-        self.last_frame_time = time.time()
-        
-        # Background setup
+        # Initialize background elements
         self.stars = self.generate_stars(150)
         self.far_stars = self.generate_stars(100)
         self.near_stars = self.generate_stars(50)
         self.nebulas = self.generate_nebulas(5)
         self.parallax_offset = 0
+        self.last_frame_time = time.time()
+        
+        # Load game assets
+        self.load_assets()
+        
+        # Initialize animation state
+        self.player_frame_idx = 0
+        self.enemy1_frame_idx = 0
+        self.enemy2_frame_idx = 0
+        self.enemy3_frame_idx = 0
+        self.powerup1_frame_idx = 0
+        self.powerup2_frame_idx = 0
+        self.powerup3_frame_idx = 0
+        self.frame_counter = 0
+        
+        # Initialize background elements
+        self.create_background()
+        
+        # Track pressed keys for continuous input
+        self.keys_pressed = {}
+        self.keys_just_pressed = {}
+        
+        # Initialize process info display
+        self.show_process_info = False
+        self.process_info_rect = pygame.Rect(5, 5, 250, 200)
+        
+        # Update stats
+        self.fps_history = []
+        self.frame_times = []
+        self.current_wave = 1
+        
+        # Initialize particle systems
+        self.explosions = []
+        self.projectile_particles = []
+        self.explosion_particles = []
+        
+        # Initialize entity tracking
+        self.entities = []
         
         # Start animation thread
         self.animation_thread = threading.Thread(target=self.animate_background)
         self.animation_thread.daemon = True
         self.animation_thread.start()
         
-        # Run the game loop
+        # Start the game loop
         self.run()
     
     def load_assets(self):
@@ -638,6 +658,11 @@ class RendererProcess:
                         self.render_to_logic_queue.put({'type': 'exit_game'})
                         pygame.quit()
                         sys.exit()
+                
+                # Debug key to toggle platform reachability visualization
+                if event.key == pygame.K_d:
+                    self.show_debug_info = not self.show_debug_info
+                    print(f"Debug visualization: {'ON' if self.show_debug_info else 'OFF'}")
             elif event.type == pygame.KEYUP:
                 self.keys_pressed[event.key] = False
         
@@ -908,6 +933,61 @@ class RendererProcess:
                     glow_color = (100, 200, 255, alpha)
                     pygame.draw.rect(glow_surf, glow_color, (0, i, width, 1))
                 self.screen.blit(glow_surf, (x, y - 5))
+                
+                # Draw debug visualization for platform reachability
+                if self.show_debug_info:
+                    # Calculate maximum jump height
+                    max_jump_height = (12 ** 2) / (2 * 0.5)  # Using JUMP_POWER=12, GRAVITY=0.5
+                    
+                    # Get player position
+                    with self.player_position_lock:
+                        player_x, player_y = self.player_position[0], self.player_position[1]
+                    
+                    # Calculate if platform is potentially reachable from player's current position
+                    vertical_dist = player_y - y  # Player y - platform y (remember y is downward)
+                    
+                    # Check if this platform is within jump range vertically
+                    if 0 < vertical_dist < max_jump_height:
+                        # Platform is above player and within jump height
+                        player_width = 50  # Approximate player width
+                        
+                        # Check horizontal overlap or proximity
+                        horizontal_reachable = (
+                            # Direct overlap
+                            (player_x < x + width and player_x + player_width > x) or
+                            # Close enough horizontally
+                            abs(player_x - (x + width)) < 100 or
+                            abs((player_x + player_width) - x) < 100
+                        )
+                        
+                        if horizontal_reachable:
+                            # Draw green outline - reachable platform
+                            pygame.draw.rect(self.screen, (0, 255, 0), (x, y, width, height), 2)
+                            
+                            # Draw jump trajectory visualization
+                            trajectory_points = []
+                            for i in range(30):
+                                # Calculate position at time i
+                                jump_x = player_x + (((x + width/2) - (player_x + player_width/2)) / 30) * i
+                                # Jump formula: y = y0 + v0*t + 0.5*a*t²
+                                # For simplicity, scaled down
+                                jump_y = player_y - 12 * i + 0.5 * 0.5 * (i ** 2)
+                                trajectory_points.append((jump_x, jump_y))
+                                
+                                if i > 0:
+                                    pygame.draw.line(self.screen, (0, 255, 0, 150), 
+                                                    trajectory_points[i-1], trajectory_points[i], 2)
+                        else:
+                            # Yellow outline - vertically reachable but not horizontally
+                            pygame.draw.rect(self.screen, (255, 255, 0), (x, y, width, height), 2)
+                    else:
+                        # Red outline - not reachable with current jump power
+                        pygame.draw.rect(self.screen, (255, 0, 0), (x, y, width, height), 2)
+                    
+                    # Display the vertical distance
+                    dist_text = f"{int(vertical_dist)}"
+                    dist_surf = self.small_font.render(dist_text, True, (255, 255, 255))
+                    self.screen.blit(dist_surf, (x + width/2 - dist_surf.get_width()/2, y - 20))
             
             elif entity_type == EntityType.ENEMY.value:
                 enemy_type = entity.get('enemy_type', 1)
@@ -1139,6 +1219,15 @@ class RendererProcess:
         p_text = self.small_font.render("Info", True, WHITE)
         self.screen.blit(p_text, (start_x + 5, key_y + 7))
         start_x = start_x + p_text.get_width() + 15
+        
+        # D Key for debug visualization
+        d_x = start_x
+        start_x = draw_key("D", start_x, color=(0, 180, 0))
+        
+        # D Text
+        d_text = self.small_font.render("Debug", True, WHITE)
+        self.screen.blit(d_text, (start_x + 5, key_y + 7))
+        start_x = start_x + d_text.get_width() + 15
         
         # Q Key for quitting
         q_x = start_x
@@ -1406,7 +1495,6 @@ class RendererProcess:
     
     def run(self):
         """Main rendering loop"""
-        clock = pygame.time.Clock()
         running = True
         
         while running:
@@ -1445,4 +1533,4 @@ class RendererProcess:
             pygame.display.flip()
             
             # Cap to 60 FPS
-            clock.tick(FPS) 
+            self.clock.tick(FPS) 

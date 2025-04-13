@@ -87,6 +87,8 @@ Main Process
 - **X** - Special attack
 - **ESC** - Pause game
 - **P** - Toggle process info display
+- **D** - Toggle platform reachability debug visualization
+- **Q** - Quit game
 
 ## Game Features
 
@@ -96,6 +98,7 @@ Main Process
 - Power-up system with various effects
 - Particle effects for visual feedback
 - Real-time process/thread statistics display
+- Smart platform generation ensuring reachability
 
 ## Implementation Details
 
@@ -113,6 +116,14 @@ Main Process
 - Optimized collision detection
 - Efficient entity management system
 - Background thread pooling for resource operations
+
+### Platform Generation Algorithm
+The game implements a smart platform generation algorithm that ensures platforms are always reachable by the player:
+
+1. Calculates the maximum jump height based on physics constants (jump power and gravity)
+2. Places platforms only at heights reachable from at least one existing platform
+3. Ensures adequate horizontal spacing for effective gameplay
+4. Provides debug visualization (press 'D' in-game) to show platform reachability
 
 ## Development
 

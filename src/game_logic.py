@@ -11,7 +11,7 @@ import sys
 FPS = 60
 PLAYER_SPEED = 5
 GRAVITY = 0.5
-JUMP_POWER = 12
+JUMP_POWER = 17
 PLATFORM_COUNT = 8
 ENEMY_TYPES = 3
 SPAWN_INTERVAL = 3.0  # seconds
@@ -107,16 +107,121 @@ class GameLogicProcess:
         platform_height = 20
         
         # Ground platform
-        self.create_entity(EntityType.PLATFORM, 
+        ground_platform = self.create_entity(EntityType.PLATFORM, 
                           0, 
                           screen_height - 50, 
                           screen_width, 50)
         
-        # Additional platforms
-        for _ in range(PLATFORM_COUNT):
-            x = random.randint(0, screen_width - platform_width)
-            y = random.randint(100, screen_height - 150)
-            self.create_entity(EntityType.PLATFORM, x, y, platform_width, platform_height)
+        # Calculate maximum jump height based on jump power and gravity
+        # Using the formula: max_height = (jump_power^2) / (2 * gravity)
+        max_jump_height = (JUMP_POWER ** 2) / (2 * GRAVITY)
+        
+        # Minimum spacing between platforms to prevent overlap
+        min_horizontal_spacing = 50  # Minimum horizontal space between platforms
+        min_vertical_spacing = 80    # Minimum vertical space between platforms
+        
+        # Additional platforms with height restrictions to ensure reachability
+        # Start with platforms closer to the ground
+        existing_platforms = [ground_platform]
+        
+        # Divide the screen into vertical sections for better distribution
+        vertical_sections = 5
+        section_height = (screen_height - 150) / vertical_sections
+        
+        # Create platforms in each vertical section
+        platforms_per_section = PLATFORM_COUNT // vertical_sections
+        remaining_platforms = PLATFORM_COUNT % vertical_sections
+        
+        for section in range(vertical_sections):
+            section_y_min = 100 + section * section_height
+            section_y_max = section_y_min + section_height - platform_height
+            
+            # Determine platforms to create in this section
+            section_platforms = platforms_per_section
+            if section < remaining_platforms:
+                section_platforms += 1
+            
+            for _ in range(section_platforms):
+                max_attempts = 15
+                platform_created = False
+                
+                for attempt in range(max_attempts):
+                    x = random.randint(0, screen_width - platform_width)
+                    y = random.randint(int(section_y_min), int(section_y_max))
+                    
+                    # Check for overlap with existing platforms
+                    overlapping = False
+                    too_close = False
+                    
+                    for existing in existing_platforms:
+                        # Check if platforms would overlap
+                        if (x < existing.x + existing.width + min_horizontal_spacing and 
+                            x + platform_width + min_horizontal_spacing > existing.x and
+                            y < existing.y + existing.height + min_vertical_spacing and
+                            y + platform_height + min_vertical_spacing > existing.y):
+                            too_close = True
+                            break
+                    
+                    if too_close:
+                        continue
+                    
+                    # Check if this platform is reachable from at least one existing platform
+                    platform_reachable = False
+                    
+                    # A platform is considered reachable if it's within max_jump_height of another platform
+                    # and there's some horizontal overlap or it's close enough horizontally
+                    for existing in existing_platforms:
+                        # Vertical distance check (is the platform within jump range?)
+                        vertical_dist = existing.y - y  # Note: y increases downward
+                        
+                        # Platform must be above the existing one (smaller y value) and within jump height
+                        if 0 < vertical_dist < max_jump_height:
+                            # Horizontal distance check (can the player reach it horizontally?)
+                            # Check if platforms overlap horizontally or are close enough
+                            platform_left = x
+                            platform_right = x + platform_width
+                            existing_left = existing.x
+                            existing_right = existing.x + existing.width
+                            
+                            # Check for horizontal overlap or closeness
+                            horizontal_overlap = (
+                                (platform_left <= existing_right and platform_right >= existing_left) or
+                                abs(platform_left - existing_right) < 100 or
+                                abs(platform_right - existing_left) < 100
+                            )
+                            
+                            if horizontal_overlap:
+                                platform_reachable = True
+                                break
+                    
+                    # Only create platform if it's reachable or it's in the lowest section
+                    if platform_reachable or section == 0:
+                        new_platform = self.create_entity(EntityType.PLATFORM, x, y, platform_width, platform_height)
+                        existing_platforms.append(new_platform)
+                        platform_created = True
+                        break
+                
+                # If we couldn't create a reachable platform after max attempts,
+                # place one that at least doesn't overlap with others
+                if not platform_created:
+                    for attempt in range(max_attempts):
+                        x = random.randint(0, screen_width - platform_width)
+                        y = random.randint(int(section_y_min), int(section_y_max))
+                        
+                        # Check only for overlap, not reachability
+                        overlapping = False
+                        for existing in existing_platforms:
+                            if (x < existing.x + existing.width and 
+                                x + platform_width > existing.x and
+                                y < existing.y + existing.height and
+                                y + platform_height > existing.y):
+                                overlapping = True
+                                break
+                        
+                        if not overlapping:
+                            new_platform = self.create_entity(EntityType.PLATFORM, x, y, platform_width, platform_height)
+                            existing_platforms.append(new_platform)
+                            break
         
         # Start enemy spawner thread
         self.enemy_spawner = threading.Thread(target=self.spawn_enemies)
