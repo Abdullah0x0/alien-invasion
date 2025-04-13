@@ -488,13 +488,40 @@ class GameLogicProcess:
             if self.game_state.value != GameState.PLAYING.value:
                 return
                 
-        # Apply gravity
-        self.player.velocity_y += GRAVITY
-        
-        # Update position
+        # Update physics on player
         self.player.update()
         
-        # Check platform collisions
+        # Apply gravity if not on ground
+        if not self.player.on_ground:
+            self.player.velocity_y += GRAVITY
+            
+            # Terminal velocity
+            if self.player.velocity_y > 15:
+                self.player.velocity_y = 15
+        
+        # Screen boundary checking
+        screen_width = 1200  # Same as WINDOW_WIDTH
+        screen_height = 800  # Same as WINDOW_HEIGHT
+        
+        # Prevent player from going off-screen horizontally
+        if self.player.x < 0:
+            self.player.x = 0
+        elif self.player.x + self.player.width > screen_width:
+            self.player.x = screen_width - self.player.width
+        
+        # Prevent player from going off-screen vertically (top only, bottom is handled by platforms)
+        if self.player.y < 0:
+            self.player.y = 0
+            self.player.velocity_y = 0  # Stop upward movement
+        
+        # If player falls off the bottom of the screen, reset position to center
+        if self.player.y > screen_height + 100:  # Give some leeway below screen
+            self.player.x = screen_width // 3
+            self.player.y = screen_height // 2
+            self.player.velocity_x = 0
+            self.player.velocity_y = 0
+        
+        # Check for platform collisions
         self.player.on_ground = False
         for platform in self.platforms:
             if self.player.check_collision(platform):
