@@ -118,6 +118,11 @@ class RendererProcess:
         self.fps_history = []
         self.frame_times = []
         self.current_wave = 1
+        self.wave_progress = 0
+        
+        # Wave message display
+        self.wave_message = None
+        self.wave_message_end_time = 0
         
         # Initialize particle systems
         self.explosions = []
@@ -281,113 +286,239 @@ class RendererProcess:
         
         return surf
     
-    def create_enemy_sprite(self, enemy_type):
-        """Create enemy sprite based on type with animation frames"""
+    def create_enemy_sprite(self, enemy_type, wave=1):
+        """Create enemy sprite based on type and wave
+        
+        Args:
+            enemy_type (int): Type of enemy (1=basic, 2=tough, 3=fast)
+            wave (int): Current wave number (affects appearance)
+        """
+        # Base size for all enemies
+        size = 60
+        surf = pygame.Surface((size, size), pygame.SRCALPHA)
+        
+        # Higher waves have more menacing enemies
+        is_enhanced = wave >= 2
+        is_elite = wave >= 3
+        
+        # Create frame animations for each enemy type
         frames = []
         
-        if enemy_type == 1:  # Basic enemy
-            # Frame 1
-            surf1 = pygame.Surface((40, 40), pygame.SRCALPHA)
-            pygame.draw.circle(surf1, RED, (20, 20), 15)
-            pygame.draw.circle(surf1, WHITE, (15, 15), 5)
-            pygame.draw.circle(surf1, WHITE, (25, 15), 5)
-            pygame.draw.circle(surf1, BLACK, (15, 15), 2)
-            pygame.draw.circle(surf1, BLACK, (25, 15), 2)
-            pygame.draw.arc(surf1, BLACK, (10, 15, 20, 20), 0, 3.14, 2)
-            pygame.draw.line(surf1, RED, (10, 35), (5, 40), 3)
-            pygame.draw.line(surf1, RED, (30, 35), (35, 40), 3)
-            frames.append(surf1)
-            
-            # Frame 2 - Tentacles in different position
-            surf2 = surf1.copy()
-            pygame.draw.line(surf2, (0, 0, 0, 0), (10, 35), (5, 40), 3)  # Clear previous tentacle
-            pygame.draw.line(surf2, (0, 0, 0, 0), (30, 35), (35, 40), 3)  # Clear previous tentacle
-            pygame.draw.line(surf2, RED, (10, 35), (0, 35), 3)  # New tentacle position
-            pygame.draw.line(surf2, RED, (30, 35), (40, 35), 3)  # New tentacle position
-            frames.append(surf2)
-            
-            # Frame 3 - Eyes blink
-            surf3 = surf1.copy()
-            pygame.draw.circle(surf3, (0, 0, 0, 0), (15, 15), 5)  # Clear previous eye
-            pygame.draw.circle(surf3, (0, 0, 0, 0), (25, 15), 5)  # Clear previous eye
-            pygame.draw.circle(surf3, (0, 0, 0, 0), (15, 15), 2)  # Clear previous pupil
-            pygame.draw.circle(surf3, (0, 0, 0, 0), (25, 15), 2)  # Clear previous pupil
-            pygame.draw.rect(surf3, WHITE, (10, 15, 10, 2))  # Closed eye
-            pygame.draw.rect(surf3, WHITE, (20, 15, 10, 2))  # Closed eye
-            frames.append(surf3)
-            
-        elif enemy_type == 2:  # Tough enemy
-            # Frame 1
-            surf1 = pygame.Surface((40, 40), pygame.SRCALPHA)
-            pygame.draw.circle(surf1, PURPLE, (20, 20), 18)
-            pygame.draw.circle(surf1, WHITE, (15, 15), 4)
-            pygame.draw.circle(surf1, WHITE, (25, 15), 4)
-            pygame.draw.circle(surf1, BLACK, (15, 15), 2)
-            pygame.draw.circle(surf1, BLACK, (25, 15), 2)
-            pygame.draw.arc(surf1, GRAY, (5, 5, 30, 30), 0, 6.28, 3)
-            frames.append(surf1)
-            
-            # Frame 2 - Armor pulsing
-            surf2 = surf1.copy()
-            pygame.draw.arc(surf2, (0, 0, 0, 0), (5, 5, 30, 30), 0, 6.28, 3)  # Clear previous armor
-            pygame.draw.arc(surf2, GRAY, (7, 7, 26, 26), 0, 6.28, 4)  # New armor size
-            frames.append(surf2)
-            
-            # Frame 3 - Armor and eyes pulsing
-            surf3 = surf1.copy()
-            pygame.draw.circle(surf3, (0, 0, 0, 0), (15, 15), 4)  # Clear previous eye
-            pygame.draw.circle(surf3, (0, 0, 0, 0), (25, 15), 4)  # Clear previous eye
-            pygame.draw.circle(surf3, WHITE, (15, 15), 5)  # Larger eye
-            pygame.draw.circle(surf3, WHITE, (25, 15), 5)  # Larger eye
-            pygame.draw.circle(surf3, RED, (15, 15), 3)  # Colored pupil
-            pygame.draw.circle(surf3, RED, (25, 15), 3)  # Colored pupil
-            frames.append(surf3)
-            
-        else:  # Fast enemy
-            # Frame 1
-            surf1 = pygame.Surface((40, 40), pygame.SRCALPHA)
-            pygame.draw.rect(surf1, YELLOW, (10, 10, 20, 25))
-            pygame.draw.circle(surf1, RED, (15, 15), 3)
-            pygame.draw.circle(surf1, RED, (25, 15), 3)
-            pygame.draw.polygon(surf1, YELLOW, [(5, 15), (10, 10), (10, 30), (5, 25)])
-            pygame.draw.polygon(surf1, YELLOW, [(30, 10), (35, 15), (35, 25), (30, 30)])
-            frames.append(surf1)
-            
-            # Frame 2 - Wings flapping
-            surf2 = surf1.copy()
-            pygame.draw.polygon(surf2, (0, 0, 0, 0), [(5, 15), (10, 10), (10, 30), (5, 25)])  # Clear previous wing
-            pygame.draw.polygon(surf2, (0, 0, 0, 0), [(30, 10), (35, 15), (35, 25), (30, 30)])  # Clear previous wing
-            pygame.draw.polygon(surf2, YELLOW, [(2, 20), (10, 10), (10, 30), (2, 20)])  # New wing position
-            pygame.draw.polygon(surf2, YELLOW, [(30, 10), (38, 20), (38, 20), (30, 30)])  # New wing position
-            frames.append(surf2)
-            
-            # Frame 3 - Different wing position and glowing eyes
-            surf3 = surf1.copy()
-            pygame.draw.polygon(surf3, (0, 0, 0, 0), [(5, 15), (10, 10), (10, 30), (5, 25)])  # Clear previous wing
-            pygame.draw.polygon(surf3, (0, 0, 0, 0), [(30, 10), (35, 15), (35, 25), (30, 30)])  # Clear previous wing
-            pygame.draw.polygon(surf3, YELLOW, [(8, 10), (10, 10), (10, 30), (8, 30)])  # New wing position (folded)
-            pygame.draw.polygon(surf3, YELLOW, [(30, 10), (32, 10), (32, 30), (30, 30)])  # New wing position (folded)
-            pygame.draw.circle(surf3, (255, 255, 0), (15, 15), 4)  # Glowing eye
-            pygame.draw.circle(surf3, (255, 255, 0), (25, 15), 4)  # Glowing eye
-            frames.append(surf3)
+        if enemy_type == 1:  # Basic enemy - circle shape
+            for frame in range(4):  # 4 animation frames
+                frame_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+                
+                # Base color gets more intense with waves
+                if is_elite:
+                    base_color = (200, 0, 0)  # Red for elite
+                    eye_color = (255, 255, 0)  # Yellow eyes
+                    glow_color = (255, 100, 0, 50)  # Orange glow
+                elif is_enhanced:
+                    base_color = (150, 0, 0)  # Dark red for enhanced
+                    eye_color = (200, 200, 100)  # Light yellow eyes
+                    glow_color = (200, 50, 0, 40)  # Reddish glow
+                else:
+                    base_color = (100, 100, 100)  # Gray for basic
+                    eye_color = (255, 255, 255)  # White eyes
+                    glow_color = None
+                
+                # Draw body
+                body_radius = 25 + frame % 2  # Pulsating effect
+                pygame.draw.circle(frame_surf, base_color, (size//2, size//2), body_radius)
+                
+                # Enhanced versions have glowing aura
+                if is_enhanced:
+                    # Create glow surface
+                    glow_surf = pygame.Surface((size+20, size+20), pygame.SRCALPHA)
+                    pygame.draw.circle(glow_surf, glow_color, (size//2+10, size//2+10), body_radius+10)
+                    # Apply glow first
+                    frame_surf.blit(glow_surf, (-10, -10))
+                    # Redraw body on top
+                    pygame.draw.circle(frame_surf, base_color, (size//2, size//2), body_radius)
+                
+                # Draw eyes (pulsating position)
+                eye_offset = 2 + frame % 2
+                pygame.draw.circle(frame_surf, eye_color, (size//2 - 10, size//2 - eye_offset), 5)
+                pygame.draw.circle(frame_surf, eye_color, (size//2 + 10, size//2 - eye_offset), 5)
+                
+                # Draw mouth (changes with animation)
+                if frame % 2 == 0:
+                    # Open mouth
+                    pygame.draw.arc(frame_surf, (0, 0, 0), (size//2-15, size//2, 30, 20), 0, 3.14, 3)
+                else:
+                    # Closed mouth with teeth for enhanced versions
+                    if is_enhanced:
+                        # Scary mouth with teeth
+                        pygame.draw.arc(frame_surf, (200, 0, 0), (size//2-15, size//2, 30, 15), 0, 3.14, 3)
+                        # Teeth
+                        for i in range(4):
+                            tooth_x = size//2 - 12 + i * 8
+                            pygame.draw.polygon(frame_surf, (255, 255, 255), 
+                                             [(tooth_x, size//2+8), (tooth_x+4, size//2+8), (tooth_x+2, size//2+13)])
+                    else:
+                        # Simple mouth
+                        pygame.draw.line(frame_surf, (0, 0, 0), (size//2-10, size//2+5), (size//2+10, size//2+5), 2)
+                
+                frames.append(frame_surf)
         
-        # Store animation frames
+        elif enemy_type == 2:  # Tough enemy - square shape
+            for frame in range(4):
+                frame_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+                
+                # Base color gets more intense with waves
+                if is_elite:
+                    base_color = (0, 0, 180)  # Deep blue for elite
+                    eye_color = (255, 0, 0)  # Red eyes
+                    glow_color = (0, 100, 255, 70)  # Blue glow
+                    detail_color = (100, 200, 255)  # Light blue details
+                elif is_enhanced:
+                    base_color = (0, 0, 120)  # Blue for enhanced
+                    eye_color = (200, 0, 0)  # Dark red eyes
+                    glow_color = (0, 50, 200, 50)  # Blue glow
+                    detail_color = (50, 150, 200)  # Blue details
+                else:
+                    base_color = (50, 50, 120)  # Dark blue for basic
+                    eye_color = (255, 255, 255)  # White eyes
+                    glow_color = None
+                    detail_color = (100, 100, 150)  # Light blue details
+                
+                # Body pulsation for animation
+                body_size = 40 + frame % 2 * 4
+                body_rect = pygame.Rect((size-body_size)//2, (size-body_size)//2, body_size, body_size)
+                
+                # Enhanced versions have glowing aura
+                if is_enhanced:
+                    # Create glow surface
+                    glow_surf = pygame.Surface((size+20, size+20), pygame.SRCALPHA)
+                    glow_rect = pygame.Rect((size-body_size)//2-10, (size-body_size)//2-10, body_size+20, body_size+20)
+                    pygame.draw.rect(glow_surf, glow_color, glow_rect, border_radius=5)
+                    # Apply glow first
+                    frame_surf.blit(glow_surf, (-10, -10))
+                
+                # Draw body
+                pygame.draw.rect(frame_surf, base_color, body_rect, border_radius=5)
+                
+                # Draw armor plates
+                if is_elite:
+                    # Elite have more armor
+                    for i in range(3):
+                        plate_width = body_size - 10 - i * 6
+                        plate_rect = pygame.Rect((size-plate_width)//2, (size-body_size)//2 + 8 + i * 10, 
+                                               plate_width, 6)
+                        pygame.draw.rect(frame_surf, detail_color, plate_rect)
+                elif is_enhanced:
+                    # Enhanced have some armor
+                    for i in range(2):
+                        plate_width = body_size - 10 - i * 8
+                        plate_rect = pygame.Rect((size-plate_width)//2, (size-body_size)//2 + 10 + i * 12, 
+                                               plate_width, 5)
+                        pygame.draw.rect(frame_surf, detail_color, plate_rect)
+                
+                # Draw eyes
+                eye_offset = frame % 2 * 2
+                eye_size = 6 if is_elite else 5
+                pygame.draw.rect(frame_surf, eye_color, 
+                              (size//2 - 15, size//2 - 10 + eye_offset, eye_size, eye_size))
+                pygame.draw.rect(frame_surf, eye_color, 
+                              (size//2 + 10, size//2 - 10 + eye_offset, eye_size, eye_size))
+                
+                # Elite enemy has glowing eyes
+                if is_elite:
+                    # Glowing eye effect
+                    eye_glow = pygame.Surface((12, 12), pygame.SRCALPHA)
+                    pygame.draw.circle(eye_glow, (255, 0, 0, 100), (6, 6), 6)
+                    frame_surf.blit(eye_glow, (size//2 - 18, size//2 - 13 + eye_offset))
+                    frame_surf.blit(eye_glow, (size//2 + 7, size//2 - 13 + eye_offset))
+                
+                frames.append(frame_surf)
+        
+        elif enemy_type == 3:  # Fast enemy - triangle shape
+            for frame in range(4):
+                frame_surf = pygame.Surface((size, size), pygame.SRCALPHA)
+                
+                # Base color gets more intense with waves
+                if is_elite:
+                    base_color = (0, 180, 0)  # Green for elite
+                    eye_color = (255, 255, 0)  # Yellow eyes
+                    trail_color = (0, 255, 0, 50)  # Green trail
+                elif is_enhanced:
+                    base_color = (0, 120, 0)  # Dark green for enhanced
+                    eye_color = (200, 200, 0)  # Yellow eyes
+                    trail_color = (0, 200, 0, 40)  # Green trail
+                else:
+                    base_color = (0, 100, 0)  # Very dark green for basic
+                    eye_color = (255, 255, 255)  # White eyes
+                    trail_color = None
+                
+                # Animation: shift position slightly
+                shift = frame % 2 * 4
+                
+                # Draw trail/wake for enhanced versions
+                if is_enhanced:
+                    for i in range(3):
+                        trail_offset = 15 + i * 5
+                        trail_points = [
+                            (size//2, size//2 - 20 + shift),  # Top
+                            (size//2 - 25, size//2 + 20 + shift),  # Bottom left
+                            (size//2 + 25, size//2 + 20 + shift),  # Bottom right
+                        ]
+                        trail_alpha = 150 - i * 40
+                        trail_color = (trail_color[0], trail_color[1], trail_color[2], trail_alpha)
+                        
+                        # Draw trail behind the main shape
+                        pygame.draw.polygon(frame_surf, trail_color, 
+                                         [(p[0] - trail_offset, p[1]) for p in trail_points])
+                
+                # Draw main body - sleek triangle shape
+                body_points = [
+                    (size//2, size//2 - 20 + shift),  # Top
+                    (size//2 - 20, size//2 + 15 + shift),  # Bottom left
+                    (size//2 + 20, size//2 + 15 + shift),  # Bottom right
+                ]
+                pygame.draw.polygon(frame_surf, base_color, body_points)
+                
+                # Elite version has more detail
+                if is_elite:
+                    # Draw wing-like extensions
+                    wing_points_left = [
+                        (body_points[0][0], body_points[0][1] + 5),  # Near top
+                        (body_points[1][0] - 10, body_points[1][1] - 5),  # Extended bottom left
+                        (body_points[1][0], body_points[1][1]),  # Bottom left
+                    ]
+                    wing_points_right = [
+                        (body_points[0][0], body_points[0][1] + 5),  # Near top
+                        (body_points[2][0] + 10, body_points[2][1] - 5),  # Extended bottom right
+                        (body_points[2][0], body_points[2][1]),  # Bottom right
+                    ]
+                    pygame.draw.polygon(frame_surf, (0, 255, 0), wing_points_left)
+                    pygame.draw.polygon(frame_surf, (0, 255, 0), wing_points_right)
+                
+                # Draw eyes
+                eye_y = size//2 - 5 + shift
+                pygame.draw.circle(frame_surf, eye_color, (size//2 - 8, eye_y), 3)
+                pygame.draw.circle(frame_surf, eye_color, (size//2 + 8, eye_y), 3)
+                
+                # Add highlights for enhanced versions
+                if is_enhanced:
+                    # Draw highlight streaks
+                    highlight_points = [
+                        (size//2, size//2 - 15 + shift),  # Near top
+                        (size//2, size//2 + 10 + shift),  # Near bottom
+                    ]
+                    pygame.draw.line(frame_surf, (200, 255, 200), 
+                                  highlight_points[0], highlight_points[1], 2)
+                
+                frames.append(frame_surf)
+        
+        # Store the frames in the appropriate class variable based on enemy type
         if enemy_type == 1:
             self.enemy1_frames = frames
-            self.enemy1_frame_idx = 0
-            self.enemy1_anim_counter = 0
-            self.enemy1_anim_delay = 10
         elif enemy_type == 2:
             self.enemy2_frames = frames
-            self.enemy2_frame_idx = 0
-            self.enemy2_anim_counter = 0
-            self.enemy2_anim_delay = 15
-        else:
+        elif enemy_type == 3:
             self.enemy3_frames = frames
-            self.enemy3_frame_idx = 0
-            self.enemy3_anim_counter = 0
-            self.enemy3_anim_delay = 5
-        
+            
+        # Return the frame list
         return frames[0]
     
     def create_powerup_sprite(self, powerup_type):
@@ -710,16 +841,25 @@ class RendererProcess:
             if not self.logic_to_render_queue.empty():
                 game_data = self.logic_to_render_queue.get_nowait()
                 
+                # Check if this is a wave message
+                if game_data.get('type') == 'wave_message':
+                    self.wave_message = {
+                        'text': game_data.get('message', ''),
+                        'duration': game_data.get('duration', 2.0)
+                    }
+                    self.wave_message_end_time = time.time() + self.wave_message['duration']
                 # Check if this is an explosion event
-                if game_data.get('type') == 'explosion':
+                elif game_data.get('type') == 'explosion':
                     x = game_data.get('x', 0)
                     y = game_data.get('y', 0)
                     enemy_type = game_data.get('enemy_type', 1)
-                    self.create_enemy_explosion(x, y, enemy_type)
+                    enemy_wave = game_data.get('wave', 1)
+                    self.create_enemy_explosion(x, y, enemy_type, enemy_wave)
                 else:
                     # Regular game state update
                     self.entities = game_data.get('entities', [])
                     self.current_wave = game_data.get('wave', 1)
+                    self.wave_progress = game_data.get('wave_progress', 0)
                 
                 # Comment out debug prints
                 # Debug: Count entities by type
@@ -827,6 +967,18 @@ class RendererProcess:
             glow['lifetime'] -= 1
             if glow['lifetime'] <= 0:
                 self.explosion_glows.pop(i)
+                
+        # Update powerup animations
+        self.frame_counter += 1
+        if self.frame_counter >= 10:  # Update powerup frames every 10 frames
+            self.frame_counter = 0
+            # Update powerup animation frames
+            if hasattr(self, 'powerup1_frames') and self.powerup1_frames:
+                self.powerup1_frame_idx = (self.powerup1_frame_idx + 1) % len(self.powerup1_frames)
+            if hasattr(self, 'powerup2_frames') and self.powerup2_frames:
+                self.powerup2_frame_idx = (self.powerup2_frame_idx + 1) % len(self.powerup2_frames)
+            if hasattr(self, 'powerup3_frames') and self.powerup3_frames:
+                self.powerup3_frame_idx = (self.powerup3_frame_idx + 1) % len(self.powerup3_frames)
     
     def create_explosion(self, x, y, color=(255, 100, 0), count=30):
         """Create particle explosion effect"""
@@ -843,22 +995,43 @@ class RendererProcess:
             b = min(255, max(0, color[2] + random.randint(-20, 20)))
             self.explosion_particles.append((x, y, (r, g, b), size, lifetime, dx, dy))
     
-    def create_enemy_explosion(self, x, y, enemy_type=1):
+    def create_enemy_explosion(self, x, y, enemy_type=1, wave=1):
         """Create an explosion effect when an enemy is destroyed"""
         # Center the explosion on the enemy
         center_x = x + 30  # Assuming enemy width is 60
         center_y = y + 30  # Assuming enemy height is 60
         
-        # Create the main explosion with color based on enemy type
+        # Create the main explosion with color based on enemy type and wave
         if enemy_type == 1:
-            color = (255, 100, 0)  # Orange for basic enemies
+            # Base color based on wave
+            if wave >= 3:
+                color = (255, 50, 0)  # Intense orange-red for elite
+            elif wave == 2:
+                color = (255, 80, 0)  # Bright orange for enhanced
+            else:
+                color = (255, 100, 0)  # Standard orange for basic
         elif enemy_type == 2:
-            color = (100, 100, 255)  # Blue for tough enemies
+            # Base color based on wave
+            if wave >= 3:
+                color = (50, 50, 255)  # Intense blue for elite
+            elif wave == 2:
+                color = (80, 80, 255)  # Bright blue for enhanced
+            else:
+                color = (100, 100, 255)  # Standard blue for basic
         else:
-            color = (255, 255, 0)  # Yellow for fast enemies
+            # Base color based on wave
+            if wave >= 3:
+                color = (50, 255, 50)  # Intense green for elite
+            elif wave == 2:
+                color = (80, 255, 80)  # Bright green for enhanced
+            else:
+                color = (255, 255, 0)  # Standard yellow for basic
+        
+        # Scale explosion size with wave
+        particle_count = 40 + (wave - 1) * 20  # More particles for higher waves
         
         # Create multiple particle bursts for a more impressive effect
-        self.create_explosion(center_x, center_y, color=color, count=40)
+        self.create_explosion(center_x, center_y, color=color, count=particle_count)
         
         # Add a white flash in the center
         self.create_explosion(center_x, center_y, color=(255, 255, 255), count=15)
@@ -1113,26 +1286,42 @@ class RendererProcess:
             
             elif entity_type == EntityType.ENEMY.value:
                 enemy_type = entity.get('enemy_type', 1)
+                enemy_wave = entity.get('wave', 1)
                 
-                # Draw current animation frame based on enemy type
+                # Get frames with correct wave-based appearance
+                if not hasattr(self, f'enemy{enemy_type}_wave{enemy_wave}_frames'):
+                    # Generate wave-specific frames if not already created
+                    setattr(self, f'enemy{enemy_type}_wave{enemy_wave}_frames', 
+                           self.create_enemy_sprite(enemy_type, enemy_wave))
+                
+                # Get the appropriate frames based on enemy type
                 if enemy_type == 1:
-                    frame = self.enemy1_frames[self.enemy1_frame_idx]
+                    frames = self.enemy1_frames
                 elif enemy_type == 2:
-                    frame = self.enemy2_frames[self.enemy2_frame_idx]
+                    frames = self.enemy2_frames
+                elif enemy_type == 3:
+                    frames = self.enemy3_frames
                 else:
-                    frame = self.enemy3_frames[self.enemy3_frame_idx]
+                    frames = [self.assets[f'enemy{enemy_type}']]
                 
-                # Comment out debug outline
-                # debug_rect = pygame.Rect(x-2, y-2, width+4, height+4)
-                # pygame.draw.rect(self.screen, (255, 0, 255), debug_rect, 2)  # Magenta outline
+                # Use the appropriate animation index
+                if enemy_type == 1:
+                    frame_idx = self.enemy1_frame_idx
+                elif enemy_type == 2:
+                    frame_idx = self.enemy2_frame_idx
+                elif enemy_type == 3:
+                    frame_idx = self.enemy3_frame_idx
+                else:
+                    frame_idx = 0
+                
+                frame = frames[frame_idx % len(frames)]
                 
                 # Draw enemy with its normal frame
                 self.screen.blit(frame, (x, y))
                 
-                # Comment out position text for debugging
-                # pos_text = f"({int(x)},{int(y)})"
-                # pos_surf = self.small_font.render(pos_text, True, (255, 255, 0))
-                # self.screen.blit(pos_surf, (x, y - 15))
+                # Comment out debug outline
+                # debug_rect = pygame.Rect(x-2, y-2, width+4, height+4)
+                # pygame.draw.rect(self.screen, (255, 0, 255), debug_rect, 2)  # Magenta outline
                 
                 # Draw enemy health bar if damaged
                 entity_health = entity.get('health', 30)  # Default health
@@ -1226,10 +1415,39 @@ class RendererProcess:
         score_surface = self.main_font.render(score_text, True, WHITE)
         self.screen.blit(score_surface, (20, 20))
         
-        # Draw wave information
+        # Draw wave number and progress bar
         wave_text = f"WAVE: {self.current_wave}"
         wave_surface = self.main_font.render(wave_text, True, WHITE)
         self.screen.blit(wave_surface, (self.width - wave_surface.get_width() - 20, 20))
+        
+        # Progress to next wave bar
+        progress_width = 200
+        progress_height = 15
+        progress_x = self.width - progress_width - 20
+        progress_y = 60
+        
+        # Draw progress bar background
+        pygame.draw.rect(self.screen, GRAY, (progress_x, progress_y, progress_width, progress_height))
+        
+        # Draw progress bar fill
+        progress_fill_width = int(self.wave_progress / 100 * progress_width)
+        
+        # Color gradient based on progress
+        if self.wave_progress < 33:
+            bar_color = (255, 50, 50)  # Red
+        elif self.wave_progress < 66:
+            bar_color = (255, 255, 50)  # Yellow
+        else:
+            bar_color = (50, 255, 50)  # Green
+            
+        pygame.draw.rect(self.screen, bar_color, (progress_x, progress_y, progress_fill_width, progress_height))
+        
+        # Add wave progress text
+        progress_text = f"Next: {self.wave_progress}%"
+        progress_text_surf = self.small_font.render(progress_text, True, WHITE)
+        text_x = progress_x + (progress_width - progress_text_surf.get_width()) // 2
+        text_y = progress_y + progress_height + 5
+        self.screen.blit(progress_text_surf, (text_x, text_y))
         
         # Draw health bar
         with self.player_health_lock:
@@ -1253,7 +1471,7 @@ class RendererProcess:
         
         # Enhanced Controls Display
         controls_bg_height = 60
-        controls_bg_width = 780  # Increase width from 750 to 950 to fully accommodate all controls
+        controls_bg_width = 950  # Increase width from 750 to 950 to fully accommodate all controls
         controls_bg_rect = pygame.Rect(
             (self.width - controls_bg_width) // 2,
             self.height - controls_bg_height - 10,
@@ -1670,6 +1888,49 @@ class RendererProcess:
                 self.draw_game_over()
             elif current_state == GameState.PAUSED.value:
                 self.draw_pause_screen()
+            
+            # Draw wave message if active
+            current_time = time.time()
+            if self.wave_message and current_time < self.wave_message_end_time:
+                # Semi-transparent background
+                message_surf = self.title_font.render(self.wave_message['text'], True, YELLOW)
+                message_width = message_surf.get_width() + 80
+                message_height = message_surf.get_height() + 40
+                
+                # Calculate remaining display time
+                time_remaining = self.wave_message_end_time - current_time
+                alpha = min(255, int(time_remaining * 255 / self.wave_message['duration']))
+                
+                # Create overlay with alpha based on remaining time
+                overlay = pygame.Surface((message_width, message_height), pygame.SRCALPHA)
+                overlay.fill((0, 0, 0, min(150, alpha)))
+                
+                # Draw message box
+                message_rect = pygame.Rect(
+                    (self.width - message_width) // 2,
+                    (self.height - message_height) // 2,
+                    message_width,
+                    message_height
+                )
+                self.screen.blit(overlay, message_rect)
+                pygame.draw.rect(self.screen, YELLOW, message_rect, 3)
+                
+                # Draw message text
+                glow_size = 3
+                for dx in range(-glow_size, glow_size + 1):
+                    for dy in range(-glow_size, glow_size + 1):
+                        if dx != 0 or dy != 0:
+                            distance = (dx**2 + dy**2) ** 0.5
+                            if distance <= glow_size:
+                                glow_alpha = int((1 - distance/glow_size) * 128)
+                                glow_color = (255, 255, 0, glow_alpha)
+                                glow_surf = self.title_font.render(self.wave_message['text'], True, glow_color)
+                                self.screen.blit(glow_surf, (message_rect.centerx - glow_surf.get_width()//2 + dx,
+                                                         message_rect.centery - glow_surf.get_height()//2 + dy))
+                
+                # Draw actual text on top of glow
+                self.screen.blit(message_surf, (message_rect.centerx - message_surf.get_width()//2,
+                                            message_rect.centery - message_surf.get_height()//2))
             
             # Update display
             pygame.display.flip()

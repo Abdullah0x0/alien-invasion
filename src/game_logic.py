@@ -82,6 +82,12 @@ class GameLogicProcess:
         self.enemy_spawn_timer = 0
         self.last_spawn_time = time.time()
         
+        # Wave progression tracking
+        self.enemies_killed_in_wave = 0
+        self.enemies_to_kill_for_next_wave = 10  # Base number, will scale with wave
+        self.wave_progress = 0  # 0 to 100 percent
+        self.wave_message_shown = False
+        
         # Weapon cooldown tracking
         self.last_primary_fire_time = 0
         self.primary_fire_cooldown = 0.15  # 150ms between shots for primary weapon
@@ -269,6 +275,9 @@ class GameLogicProcess:
         screen_height = 800
         screen_center_x = screen_width / 2
         
+        # Adjust spawn interval based on wave
+        base_spawn_interval = SPAWN_INTERVAL
+        
         while True:
             # Only spawn when playing
             with self.game_state_lock:
@@ -276,14 +285,29 @@ class GameLogicProcess:
                     time.sleep(0.5)
                     continue
             
+            # Calculate spawn interval based on wave (gets shorter as waves progress)
+            current_spawn_interval = max(0.5, base_spawn_interval - (self.wave_number * 0.2))
+            
             current_time = time.time()
-            if current_time - self.last_spawn_time >= SPAWN_INTERVAL:
+            if current_time - self.last_spawn_time >= current_spawn_interval:
                 with self.wave_lock:
                     # Determine number of enemies based on wave
                     spawn_count = min(self.wave_number, 5)
                     
                     for _ in range(spawn_count):
-                        enemy_type = random.randint(1, ENEMY_TYPES)
+                        # Higher chance of tougher enemies in later waves
+                        if self.wave_number >= 3:
+                            # 50% chance of enemy type 2 or 3 in higher waves
+                            enemy_type_weights = [0.5, 0.3, 0.2]  # Type 1, 2, 3
+                        elif self.wave_number == 2:
+                            # 30% chance of enemy type 2 or 3 in wave 2
+                            enemy_type_weights = [0.7, 0.2, 0.1]  # Type 1, 2, 3
+                        else:
+                            # Mostly basic enemies in wave 1
+                            enemy_type_weights = [0.9, 0.1, 0.0]  # Type 1, 2, 3
+                        
+                        # Select enemy type based on weights
+                        enemy_type = random.choices([1, 2, 3], weights=enemy_type_weights)[0]
                         
                         # Spawn from either side but slightly inside the screen
                         side = random.choice([-1, 1])
@@ -298,28 +322,33 @@ class GameLogicProcess:
                         # If enemy is on the right side (x > center), move left (negative velocity)
                         # If enemy is on the left side (x < center), move right (positive velocity)
                         direction = 1 if x < screen_center_x else -1
-                        enemy.velocity_x = 2 * direction
+                        base_speed = 2
+                        
+                        # Scale speed slightly with wave number
+                        wave_speed_multiplier = 1.0 + (self.wave_number - 1) * 0.1  # 10% increase per wave
+                        enemy.velocity_x = base_speed * direction * wave_speed_multiplier
                         
                         enemy.enemy_type = enemy_type
                         
+                        # Scale enemy health with wave number
+                        base_health_multiplier = 1.0 + (self.wave_number - 1) * 0.2  # 20% increase per wave
+                        
                         # Different enemy types have different health/speed
                         if enemy_type == 2:
-                            enemy.health = 50
+                            enemy.health = int(50 * base_health_multiplier)
                             enemy.velocity_x *= 0.7
                         elif enemy_type == 3:
-                            enemy.health = 20
+                            enemy.health = int(20 * base_health_multiplier)
                             enemy.velocity_x *= 1.5
+                        else:  # type 1
+                            enemy.health = int(30 * base_health_multiplier)
                         
-                        # Comment out debug print
-                        # print(f"Spawned enemy at ({x}, {y}) with velocity {enemy.velocity_x}")
+                        # Track wave number with the enemy for rendering purposes
+                        enemy.wave = self.wave_number
                 
                 self.last_spawn_time = current_time
                 
-                # Check for wave completion
-                if len(self.enemies) == 0:
-                    with self.wave_lock:
-                        self.wave_number += 1
-                        print(f"Wave {self.wave_number} starting!")
+                # Check for wave completion - moved to update_entities for accuracy
             
             time.sleep(0.5)  # Check every half second
     
@@ -573,23 +602,40 @@ class GameLogicProcess:
                             
                             if enemy.health <= 0:
                                 with self.player_score_lock:
-                                    self.player_score.value += 10
+                                    # Scale score with enemy type and wave
+                                    base_score = 10
+                                    enemy_type_bonus = (enemy.enemy_type - 1) * 5  # +0/+5/+10 for types 1/2/3
+                                    wave_bonus = (self.wave_number - 1) * 2  # +2 per wave level
+                                    score_gain = base_score + enemy_type_bonus + wave_bonus
+                                    self.player_score.value += score_gain
                                 
                                 # Save enemy position before removing it
                                 enemy_x = enemy.x
                                 enemy_y = enemy.y
                                 enemy_type = getattr(enemy, 'enemy_type', 1)
+                                enemy_wave = getattr(enemy, 'wave', 1)
                                 
                                 # Remove the enemy
                                 self.enemies.remove(enemy)
                                 del self.entities[enemy.id]
+                                
+                                # Update wave progression
+                                self.enemies_killed_in_wave += 1
+                                self.wave_progress = min(100, int((self.enemies_killed_in_wave / self.enemies_to_kill_for_next_wave) * 100))
+                                
+                                # Check for wave completion
+                                if self.enemies_killed_in_wave >= self.enemies_to_kill_for_next_wave and not self.wave_message_shown:
+                                    self.wave_message_shown = True
+                                    # Schedule a wave advancement if we've killed enough enemies
+                                    threading.Thread(target=self.advance_wave, daemon=True).start()
                                 
                                 # Send explosion event to renderer
                                 explosion_data = {
                                     'type': 'explosion',
                                     'x': enemy_x,
                                     'y': enemy_y,
-                                    'enemy_type': enemy_type
+                                    'enemy_type': enemy_type,
+                                    'wave': enemy_wave
                                 }
                                 self.logic_to_render_queue.put(explosion_data)
                             
@@ -619,6 +665,37 @@ class GameLogicProcess:
         """Remove player invincibility after a delay"""
         time.sleep(5.0)
         self.player.invincible = False
+    
+    def advance_wave(self):
+        """Advance to the next wave with a brief delay for the player to prepare"""
+        # Send wave clear message to renderer
+        wave_message = {
+            'type': 'wave_message',
+            'message': f"WAVE {self.wave_number} CLEARED!",
+            'duration': 3.0  # Show for 3 seconds
+        }
+        self.logic_to_render_queue.put(wave_message)
+        
+        # Wait 3 seconds before starting the next wave
+        time.sleep(3.0)
+        
+        with self.wave_lock:
+            self.wave_number += 1
+            # Increase the enemy count needed for the next wave
+            self.enemies_to_kill_for_next_wave = 10 + (self.wave_number - 1) * 5  # +5 enemies per wave
+            self.enemies_killed_in_wave = 0
+            self.wave_progress = 0
+            self.wave_message_shown = False
+            
+            # Send new wave start message
+            new_wave_message = {
+                'type': 'wave_message',
+                'message': f"WAVE {self.wave_number} STARTING!",
+                'duration': 2.0  # Show for 2 seconds
+            }
+            self.logic_to_render_queue.put(new_wave_message)
+            
+            print(f"Wave {self.wave_number} starting! Defeat {self.enemies_to_kill_for_next_wave} enemies to advance.")
     
     def update_game_state(self):
         """Send updated game state to the renderer"""
@@ -651,11 +728,16 @@ class GameLogicProcess:
                 if entity.type == EntityType.PROJECTILE and hasattr(entity, 'weapon_type'):
                     data['weapon_type'] = entity.weapon_type
                 
+                # Add wave information for enemies
+                if entity.type == EntityType.ENEMY and hasattr(entity, 'wave'):
+                    data['wave'] = entity.wave
+                
                 entity_data.append(data)
         
         game_data = {
             'entities': entity_data,
             'wave': self.wave_number,
+            'wave_progress': self.wave_progress,  # Add wave progress
             'player_facing_right': self.player_facing_right  # Send player direction to renderer
         }
         
@@ -735,9 +817,13 @@ class GameLogicProcess:
             self.player_position[0] = screen_width // 4
             self.player_position[1] = screen_height // 2
         
-        # Reset wave counter
+        # Reset wave counter and related variables
         with self.wave_lock:
             self.wave_number = 1
+            self.enemies_killed_in_wave = 0
+            self.enemies_to_kill_for_next_wave = 10  # Base number for wave 1
+            self.wave_progress = 0
+            self.wave_message_shown = False
             
         # Reset spawn timer
         self.last_spawn_time = time.time()
