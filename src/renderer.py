@@ -590,6 +590,24 @@ class RendererProcess:
                 game_data = self.logic_to_render_queue.get_nowait()
                 self.entities = game_data.get('entities', [])
                 self.current_wave = game_data.get('wave', 1)
+                
+                # Comment out debug prints
+                # Debug: Count entities by type
+                # entity_counts = {}
+                # for entity in self.entities:
+                #     entity_type = entity['type']
+                #     if entity_type not in entity_counts:
+                #         entity_counts[entity_type] = 0
+                #     entity_counts[entity_type] += 1
+                
+                # Print enemy count (if any)
+                # if EntityType.ENEMY.value in entity_counts:
+                #     print(f"Received {entity_counts[EntityType.ENEMY.value]} enemies")
+                #     # Debug first enemy position
+                #     for entity in self.entities:
+                #         if entity['type'] == EntityType.ENEMY.value:
+                #             print(f"Enemy at position: ({entity['x']}, {entity['y']})")
+                #             break
         except Exception as e:
             print(f"Error receiving game state: {e}")
     
@@ -775,7 +793,17 @@ class RendererProcess:
                 else:
                     frame = self.enemy3_frames[self.enemy3_frame_idx]
                 
+                # Comment out debug outline
+                # debug_rect = pygame.Rect(x-2, y-2, width+4, height+4)
+                # pygame.draw.rect(self.screen, (255, 0, 255), debug_rect, 2)  # Magenta outline
+                
+                # Draw enemy with its normal frame
                 self.screen.blit(frame, (x, y))
+                
+                # Comment out position text for debugging
+                # pos_text = f"({int(x)},{int(y)})"
+                # pos_surf = self.small_font.render(pos_text, True, (255, 255, 0))
+                # self.screen.blit(pos_surf, (x, y - 15))
                 
                 # Draw enemy health bar if damaged
                 entity_health = entity.get('health', 30)  # Default health

@@ -152,6 +152,7 @@ class GameLogicProcess:
         """Thread function to spawn enemies at intervals"""
         screen_width = 1200
         screen_height = 800
+        screen_center_x = screen_width / 2
         
         while True:
             # Only spawn when playing
@@ -169,13 +170,21 @@ class GameLogicProcess:
                     for _ in range(spawn_count):
                         enemy_type = random.randint(1, ENEMY_TYPES)
                         
-                        # Spawn from either side
+                        # Spawn from either side but slightly inside the screen
                         side = random.choice([-1, 1])
-                        x = screen_width if side == -1 else 0
+                        # Modified: Spawn 100px inside the screen instead of at the very edge
+                        x = screen_width - 100 if side == -1 else 100
                         y = random.randint(50, screen_height - 150)
                         
-                        enemy = self.create_entity(EntityType.ENEMY, x, y, 40, 40)
-                        enemy.velocity_x = -2 * side  # Move toward center
+                        # Increase enemy size from 40x40 to 60x60 to make them more visible
+                        enemy = self.create_entity(EntityType.ENEMY, x, y, 60, 60)
+                        
+                        # Fix: Calculate velocity to always move toward center
+                        # If enemy is on the right side (x > center), move left (negative velocity)
+                        # If enemy is on the left side (x < center), move right (positive velocity)
+                        direction = 1 if x < screen_center_x else -1
+                        enemy.velocity_x = 2 * direction
+                        
                         enemy.enemy_type = enemy_type
                         
                         # Different enemy types have different health/speed
@@ -185,6 +194,9 @@ class GameLogicProcess:
                         elif enemy_type == 3:
                             enemy.health = 20
                             enemy.velocity_x *= 1.5
+                        
+                        # Comment out debug print
+                        # print(f"Spawned enemy at ({x}, {y}) with velocity {enemy.velocity_x}")
                 
                 self.last_spawn_time = current_time
                 
@@ -305,9 +317,11 @@ class GameLogicProcess:
                 enemy.update()
                 
                 # Check if enemy is off-screen
-                if enemy.x < -50 or enemy.x > 1250:
+                if enemy.x < -100 or enemy.x > 1300:
                     self.enemies.remove(enemy)
                     del self.entities[enemy.id]
+                    # Comment out debug print
+                    # print(f"Enemy removed at position ({enemy.x}, {enemy.y})")
                 
                 # Check collision with player
                 if enemy.check_collision(self.player):
