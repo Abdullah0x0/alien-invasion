@@ -148,7 +148,8 @@ class RendererProcess:
             'powerup1': self.create_powerup_sprite(1),  # Health
             'powerup2': self.create_powerup_sprite(2),  # Score
             'powerup3': self.create_powerup_sprite(3),  # Invincibility
-            'projectile': self.create_projectile_sprite(),
+            'projectile1': self.create_projectile_sprite(1),  # Primary weapon (fast, blue)
+            'projectile2': self.create_projectile_sprite(2),  # Secondary weapon (plasma ball, green)
             'background': self.create_background()
         }
     
@@ -539,12 +540,24 @@ class RendererProcess:
             
             return frames[0]
     
-    def create_projectile_sprite(self):
-        """Create projectile sprite"""
-        surf = pygame.Surface((10, 10), pygame.SRCALPHA)
-        pygame.draw.circle(surf, BLUE, (5, 5), 5)
-        pygame.draw.circle(surf, WHITE, (5, 5), 2)
-        return surf
+    def create_projectile_sprite(self, weapon_type=1):
+        """Create projectile sprite based on weapon type"""
+        if weapon_type == 1:
+            # Primary weapon - blue energy bolt
+            projectile = pygame.Surface((10, 10), pygame.SRCALPHA)
+            pygame.draw.circle(projectile, (50, 100, 255), (5, 5), 5)  # Blue core
+            pygame.draw.circle(projectile, (150, 200, 255), (5, 5), 3)  # Lighter center
+            return projectile
+        else:
+            # Secondary weapon - green plasma ball
+            projectile = pygame.Surface((15, 15), pygame.SRCALPHA)
+            # Create a glowing effect with multiple layers
+            pygame.draw.circle(projectile, (0, 100, 0), (7, 7), 7)  # Dark green base
+            pygame.draw.circle(projectile, (0, 200, 50), (7, 7), 5)  # Medium green
+            pygame.draw.circle(projectile, (150, 255, 150), (7, 7), 3)  # Light green core
+            # Add some white highlights
+            pygame.draw.circle(projectile, (255, 255, 255), (5, 5), 1)
+            return projectile
     
     def create_background(self):
         """Create starfield background"""
@@ -873,14 +886,28 @@ class RendererProcess:
             'lifetime': 10
         })
     
-    def create_projectile_trail(self, x, y):
-        """Create particle trail behind projectiles"""
-        for _ in range(2):
-            dx = random.random() * 0.5 - 1.5  # Move backward
-            dy = random.random() * 1 - 0.5  # Slight vertical spread
-            size = random.random() * 2 + 1
+    def create_projectile_trail(self, x, y, weapon_type=1):
+        """Create particle trail behind projectiles based on weapon type"""
+        for _ in range(3):
+            size = random.uniform(1, 3)
+            offset_x = random.uniform(-3, 3)
+            offset_y = random.uniform(-3, 3)
             lifetime = random.randint(5, 15)
-            self.projectile_particles.append((x, y, BLUE, size, lifetime, dx, dy))
+            
+            if weapon_type == 1:
+                # Blue trail for primary weapon
+                color = BLUE
+            else:
+                # Green trail for secondary weapon
+                color = (0, 200, 50)
+            
+            # Add some variance to the color
+            r = min(255, max(0, color[0] + random.randint(-20, 20)))
+            g = min(255, max(0, color[1] + random.randint(-20, 20)))
+            b = min(255, max(0, color[2] + random.randint(-20, 20)))
+            adjusted_color = (r, g, b)
+            
+            self.projectile_particles.append((x + offset_x, y + offset_y, adjusted_color, size, lifetime, 0, 0))
     
     def draw_entities(self):
         """Draw all game entities with animations"""
@@ -1123,27 +1150,39 @@ class RendererProcess:
                     pygame.draw.rect(self.screen, GREEN, (x + 5, y - 5, current_width, 3))
             
             elif entity_type == EntityType.PROJECTILE.value:
+                weapon_type = entity.get('weapon_type', 1)
+                
                 # Add a glowing effect to projectiles
-                glow_size = 20
+                glow_size = 20 if weapon_type == 1 else 30
                 glow_surf = pygame.Surface((glow_size, glow_size), pygame.SRCALPHA)
                 
-                # Create a radial gradient
+                # Create a radial gradient with color based on weapon type
+                if weapon_type == 1:
+                    # Blue glow for primary weapon
+                    glow_color = (100, 100, 255)
+                else:
+                    # Green glow for secondary weapon
+                    glow_color = (50, 255, 100)
+                
                 for radius in range(int(glow_size/2), 0, -1):
                     alpha = int(150 * (radius / (glow_size/2)))
                     # Create proper RGBA color
-                    glow_color = (100, 100, 255, alpha)
-                    pygame.draw.circle(glow_surf, glow_color, (int(glow_size/2), int(glow_size/2)), radius)
+                    final_glow_color = (glow_color[0], glow_color[1], glow_color[2], alpha)
+                    pygame.draw.circle(glow_surf, final_glow_color, (int(glow_size/2), int(glow_size/2)), radius)
                 
                 # Position the glow behind the projectile
-                glow_x = x - int(glow_size/2) + 5
-                glow_y = y - int(glow_size/2) + 5
+                glow_x = x - int(glow_size/2) + (5 if weapon_type == 1 else 7)
+                glow_y = y - int(glow_size/2) + (5 if weapon_type == 1 else 7)
                 self.screen.blit(glow_surf, (glow_x, glow_y))
                 
                 # Draw the actual projectile
-                self.screen.blit(self.assets['projectile'], (x, y))
+                projectile_asset = self.assets[f'projectile{weapon_type}']
+                self.screen.blit(projectile_asset, (x, y))
                 
-                # Create particle trail
-                self.create_projectile_trail(x + 5, y + 5)
+                # Create particle trail based on weapon type
+                self.create_projectile_trail(x + (5 if weapon_type == 1 else 7), 
+                                            y + (5 if weapon_type == 1 else 7),
+                                            weapon_type)
             
             elif entity_type == EntityType.POWERUP.value:
                 powerup_type = entity.get('powerup_type', 1)
@@ -1295,6 +1334,12 @@ class RendererProcess:
         attack_x = start_x + 5
         attack_text = self.small_font.render("Attack", True, WHITE)
         self.screen.blit(attack_text, (attack_x, key_y + 7))
+        
+        # Weapon description in parentheses
+        weapon_desc_y = key_y + 23  # Position below the main text
+        weapon_desc = self.small_font.render("(Rapid/Heavy)", True, (200, 200, 200))
+        self.screen.blit(weapon_desc, (attack_x, weapon_desc_y))
+        
         start_x = attack_x + attack_text.get_width() + 20
         
         # ESC Key
@@ -1497,9 +1542,11 @@ class RendererProcess:
         instructions = [
             "CONTROLS:",
             "ARROWS: Move player (← →) and Jump (↑)",
-            "Z/X: Attack",
+            "Z: Rapid Blaster (hold for multiple shots)",
+            "X: Plasma Ball (high damage)",
             "ESC: Pause",
             "P: Toggle process info display",
+            "D: Toggle platform reachability visualization",
             "Q: Quit game",
             "",
             "Press SPACE to Start"

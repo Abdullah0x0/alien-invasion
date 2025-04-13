@@ -82,6 +82,12 @@ class GameLogicProcess:
         self.enemy_spawn_timer = 0
         self.last_spawn_time = time.time()
         
+        # Weapon cooldown tracking
+        self.last_primary_fire_time = 0
+        self.primary_fire_cooldown = 0.15  # 150ms between shots for primary weapon
+        self.last_secondary_fire_time = 0
+        self.secondary_fire_cooldown = 0.5  # 500ms between shots for secondary weapon
+        
         # Thread locks
         self.entities_lock = threading.Lock()
         self.wave_lock = threading.Lock()
@@ -428,9 +434,16 @@ class GameLogicProcess:
                         self.player.velocity_y = -JUMP_POWER
                         self.player.on_ground = False
                     
-                    # Attack
-                    if keys.get(pygame.K_z) or keys.get(pygame.K_x):
-                        self.fire_projectile()
+                    # Get current time for weapon cooldowns
+                    current_time = time.time()
+                    
+                    # Attack with different weapons based on key
+                    if keys.get(pygame.K_z) and (current_time - self.last_primary_fire_time) >= self.primary_fire_cooldown:
+                        self.fire_projectile(weapon_type=1)  # Primary weapon (faster, rapid fire, less damage)
+                        self.last_primary_fire_time = current_time
+                    elif key_press.get(pygame.K_x) and (current_time - self.last_secondary_fire_time) >= self.secondary_fire_cooldown:
+                        self.fire_projectile(weapon_type=2)  # Secondary weapon (slower, single shot, more damage)
+                        self.last_secondary_fire_time = current_time
                     
                     # Pause - use key_press to detect a new press
                     if key_press.get(pygame.K_ESCAPE):
@@ -474,24 +487,47 @@ class GameLogicProcess:
             self.player_position[0] = int(self.player.x)
             self.player_position[1] = int(self.player.y)
     
-    def fire_projectile(self):
-        """Create a player projectile that shoots in the direction the player is facing"""
+    def fire_projectile(self, weapon_type=1):
+        """Create a player projectile that shoots in the direction the player is facing
+        
+        Args:
+            weapon_type (int): 1 for primary weapon (fast, low damage), 2 for secondary weapon (slow, high damage)
+        """
         # Calculate starting position based on direction
         if self.player_facing_right:
             start_x = self.player.x + self.player.width
         else:
             start_x = self.player.x
-            
-        projectile = self.create_entity(
-            EntityType.PROJECTILE,
-            start_x,
-            self.player.y + self.player.height/2,
-            10, 10
-        )
         
-        # Set velocity based on player direction
-        projectile.velocity_x = 10 if self.player_facing_right else -10
-        projectile.damage = 10
+        # Adjust Y position based on weapon type
+        if weapon_type == 1:
+            # Primary weapon - shoot from middle
+            start_y = self.player.y + self.player.height/2
+            projectile = self.create_entity(
+                EntityType.PROJECTILE,
+                start_x,
+                start_y,
+                10, 10
+            )
+            # Fast but less damage
+            projectile.velocity_x = 15 if self.player_facing_right else -15
+            projectile.damage = 10
+            projectile.weapon_type = 1
+            
+        else:  # weapon_type == 2
+            # Secondary weapon - shoot from slightly higher
+            start_y = self.player.y + self.player.height/3
+            projectile = self.create_entity(
+                EntityType.PROJECTILE,
+                start_x,
+                start_y,
+                15, 15  # Larger projectile
+            )
+            # Slower but more damage
+            projectile.velocity_x = 8 if self.player_facing_right else -8
+            projectile.damage = 20
+            projectile.weapon_type = 2
+        
         projectile.source = 'player'
         projectile.direction = 1 if self.player_facing_right else -1  # Store direction for rendering
     
@@ -610,6 +646,10 @@ class GameLogicProcess:
                 # Add additional fields if they exist
                 if hasattr(entity, 'direction'):
                     data['direction'] = entity.direction
+                
+                # Add weapon type for projectiles
+                if entity.type == EntityType.PROJECTILE and hasattr(entity, 'weapon_type'):
+                    data['weapon_type'] = entity.weapon_type
                 
                 entity_data.append(data)
         
