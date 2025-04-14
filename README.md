@@ -2,6 +2,51 @@
 
 A platform combat game where players fight against waves of aliens, demonstrating practical implementations of operating system concepts through game mechanics.
 
+
+## Gameplay Preview
+
+<p align="center">
+  <img width="1192" alt="Intro" src="https://github.com/user-attachments/assets/74487ae5-8b79-4e30-9f23-61d1774eb2f2" /><br>
+  <strong><em>Intro Screen – Title and prompt to begin</em></strong>
+</p>
+
+&nbsp;
+
+<p align="center">
+  <img width="1192" alt="Wave 1" src="https://github.com/user-attachments/assets/40ab2d09-6512-4dc6-a1c7-499266395e37" /><br>
+  <strong><em>Gameplay – Wave 1: First enemy encounter</em></strong>
+</p>
+
+&nbsp;
+
+<p align="center">
+  <img width="1192" alt="Wave 2" src="https://github.com/user-attachments/assets/492556bc-754b-4ead-b086-42cfab52a04e" /><br>
+  <strong><em>Gameplay – Wave 2: Increased difficulty</em></strong>
+</p>
+
+&nbsp;
+
+<p align="center">
+  <img width="1192" alt="Info Toggle Placeholder" src="https://via.placeholder.com/1192x500.png?text=Info+Toggle+Coming+Soon" /><br>
+  <strong><em>Info Toggle – Toggle real-time info overlay</em></strong>
+</p>
+
+&nbsp;
+
+<p align="center">
+  <img width="1192" alt="Debug Mode" src="https://github.com/user-attachments/assets/44060520-6185-451a-9659-0f1fa6becc84" /><br>
+  <strong><em>Debug Overlay – Toggle real-time metrics</em></strong>
+</p>
+
+&nbsp;
+
+<p align="center">
+  <img width="1192" alt="Game Over" src="https://github.com/user-attachments/assets/9ff7e881-0704-4710-b6d2-2b987b84cadc" /><br>
+  <strong><em>Game Over Screen – Final stats and reset prompt</em></strong>
+</p>
+
+
+
 ## OS Concepts Implemented
 
 1. **Process Management**
@@ -250,16 +295,3 @@ This project demonstrates practical applications of operating system concepts in
 - Learning synchronization techniques
 - Practicing IPC implementations
 - Studying resource management strategies
-
-## Download and Play
-
-To play the game without installing Python:
-
-1. Go to the [Releases](https://github.com/YOUR_USERNAME/operating-sys-game/releases) page
-2. Download the appropriate file for your system:
-   - Windows: `AlienInvasion.exe`
-   - macOS: `AlienInvasion.app.zip`
-   - Linux: `AlienInvasion`
-3. Double-click the downloaded file to start playing!
-
-No installation or setup required - the game runs immediately.
