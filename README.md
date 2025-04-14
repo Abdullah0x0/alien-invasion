@@ -114,13 +114,12 @@ Main Process
 
 3. Running the game:
    ```bash
-   python src/main.py
+   python run_game.py
    ```
 
 ## Controls
 
-- **Arrow Keys** - Move the player
-- **Space** - Jump
+- **Arrow Keys** - Move the player and Jump
 - **Z** - Fire primary weapon
 - **X** - Fire secondary weapon
 - **ESC** - Pause game
@@ -251,3 +250,16 @@ This project demonstrates practical applications of operating system concepts in
 - Learning synchronization techniques
 - Practicing IPC implementations
 - Studying resource management strategies
+
+## Download and Play
+
+To play the game without installing Python:
+
+1. Go to the [Releases](https://github.com/YOUR_USERNAME/operating-sys-game/releases) page
+2. Download the appropriate file for your system:
+   - Windows: `AlienInvasion.exe`
+   - macOS: `AlienInvasion.app.zip`
+   - Linux: `AlienInvasion`
+3. Double-click the downloaded file to start playing!
+
+No installation or setup required - the game runs immediately.

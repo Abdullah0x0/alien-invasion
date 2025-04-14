@@ -442,6 +442,13 @@ class GameLogicProcess:
                     if key_press.get(pygame.K_ESCAPE):
                         with self.game_state_lock:
                             self.game_state.value = GameState.PLAYING.value
+                        
+                        # Send resume event to renderer to play sound
+                        pause_data = {
+                            'type': 'pause',
+                            'paused': False
+                        }
+                        self.logic_to_render_queue.put(pause_data)
                         return
                     
                     # Don't process other inputs in paused state
@@ -464,6 +471,12 @@ class GameLogicProcess:
                     if keys.get(pygame.K_UP) and self.player.on_ground:
                         self.player.velocity_y = -JUMP_POWER
                         self.player.on_ground = False
+                        
+                        # Send jump sound event to renderer
+                        jump_data = {
+                            'type': 'jump'
+                        }
+                        self.logic_to_render_queue.put(jump_data)
                     
                     # Get current time for weapon cooldowns
                     current_time = time.time()
@@ -480,6 +493,13 @@ class GameLogicProcess:
                     if key_press.get(pygame.K_ESCAPE):
                         with self.game_state_lock:
                             self.game_state.value = GameState.PAUSED.value
+                        
+                        # Send pause event to renderer to play sound
+                        pause_data = {
+                            'type': 'pause',
+                            'paused': True
+                        }
+                        self.logic_to_render_queue.put(pause_data)
         except Exception as e:
             print(f"Error processing input: {e}")
         
@@ -608,6 +628,13 @@ class GameLogicProcess:
                     with self.player_health_lock:
                         self.player_health.value -= 10
                         
+                        # Send hurt sound event to renderer
+                        hurt_data = {
+                            'type': 'hurt',
+                            'health': self.player_health.value
+                        }
+                        self.logic_to_render_queue.put(hurt_data)
+                        
                         if self.player_health.value <= 0:
                             with self.game_state_lock:
                                 self.game_state.value = GameState.GAME_OVER.value
@@ -714,7 +741,8 @@ class GameLogicProcess:
                         'color': powerup_color,
                         'x': powerup_x,
                         'y': powerup_y,
-                        'powerup_type': powerup_type
+                        'powerup_type': powerup_type,
+                        'play_sound': True  # Signal to play the powerup sound
                     }
                     self.logic_to_render_queue.put(pickup_data)
     

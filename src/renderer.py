@@ -171,7 +171,8 @@ class RendererProcess:
             'hurt': 'hurt.wav',  # A more subtle sound for smaller enemies
             'game_over': 'game_over.wav',
             'jet': 'jet.wav',
-            'enemy_defeat': 'hurt.wav'  # Temporarily use hurt.wav as enemy defeat sound
+            'enemy_defeat': 'hurt.wav',  # Temporarily use hurt.wav as enemy defeat sound
+            'jump': 'jump.wav'  # Added jump sound
         }
         
         # Load each sound file
@@ -910,6 +911,10 @@ class RendererProcess:
                     }
                     self.powerup_message_end_time = time.time() + self.powerup_message['duration']
                     
+                    # Play powerup sound if indicated
+                    if game_data.get('play_sound', False) and 'powerup' in self.sounds:
+                        self.sounds['powerup'].play()
+                    
                     # Create pickup animation particles
                     self.create_powerup_pickup_animation(
                         game_data.get('x', 0),
@@ -923,6 +928,30 @@ class RendererProcess:
                     enemy_type = game_data.get('enemy_type', 1)
                     enemy_wave = game_data.get('wave', 1)
                     self.create_enemy_explosion(x, y, enemy_type, enemy_wave)
+                # Check if this is a shoot event
+                elif game_data.get('type') == 'shoot':
+                    # Play shoot sound
+                    if 'shoot' in self.sounds:
+                        # Slightly vary the pitch for primary weapon (rapid fire)
+                        if game_data.get('weapon_type', 1) == 1:
+                            # Random pitch between 0.9 and 1.1 for the primary weapon
+                            self.sounds['shoot'].set_volume(0.2)  # Lower volume for rapid fire
+                        else:
+                            # Secondary weapon has a fixed, slightly louder sound
+                            self.sounds['shoot'].set_volume(0.3)
+                        self.sounds['shoot'].play()
+                # Check if this is a pause event
+                elif game_data.get('type') == 'pause':
+                    if 'pause' in self.sounds:
+                        self.sounds['pause'].play()
+                # Check if this is a jump event
+                elif game_data.get('type') == 'jump':
+                    if 'jump' in self.sounds:
+                        self.sounds['jump'].play()
+                # Check if this is a hurt event
+                elif game_data.get('type') == 'hurt':
+                    if 'hurt' in self.sounds:
+                        self.sounds['hurt'].play()
                 else:
                     # Regular game state update
                     self.entities = game_data.get('entities', [])
@@ -1987,6 +2016,9 @@ class RendererProcess:
         """Main rendering loop"""
         running = True
         
+        # Track previous game state to detect transitions
+        previous_state = None
+        
         while running:
             # Handle events
             self.handle_events()
@@ -1997,6 +2029,14 @@ class RendererProcess:
             # Get current game state
             with self.game_state_lock:
                 current_state = self.game_state.value
+                
+            # Detect state transitions
+            if previous_state != current_state:
+                # Play game over sound when transitioning to game over state
+                if current_state == GameState.GAME_OVER.value and 'game_over' in self.sounds:
+                    self.sounds['game_over'].play()
+                # Track the new state
+                previous_state = current_state
             
             # Clear screen and draw background
             self.screen.fill(BLACK)
