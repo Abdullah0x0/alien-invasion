@@ -27,9 +27,9 @@ A platform combat game where players fight against waves of aliens, demonstratin
 &nbsp;
 
 <p align="center">
-  <img width="1192" alt="Info Toggle Placeholder" src="https://via.placeholder.com/1192x500.png?text=Info+Toggle+Coming+Soon" /><br>
+  <img width="1192" alt="Info Toggle Placeholder" src="https://github.com/user-attachments/assets/9c88c683-4fcd-450b-b930-41b6d0736648" /><br>
   <strong><em>Info Toggle – Toggle real-time info overlay</em></strong>
-</p>
+
 
 &nbsp;
 
