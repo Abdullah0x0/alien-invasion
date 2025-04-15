@@ -1831,12 +1831,17 @@ class RendererProcess:
                             (info_bg_rect.x + info_width - 10, y_offset - 1))
             
             # Metrics data in two columns
+            try:
+                queue_size = f"{self.logic_to_render_queue.qsize()}"
+            except NotImplementedError:
+                queue_size = "N/A (macOS)"
+
             metrics = [
                 ("FPS", f"{current_fps:.1f}"),
                 ("Frame Time", f"{avg_frame_time*1000:.1f} ms"),
                 ("Entities", f"{len(self.entities)}"),
                 ("Particles", f"{len(self.projectile_particles) + len(self.explosion_particles)}"),
-                ("Queue Size", f"{self.logic_to_render_queue.qsize()}")
+                ("Queue Size", queue_size)
             ]
             
             # System metrics if available
