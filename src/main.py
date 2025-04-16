@@ -15,7 +15,7 @@ from intro_sequence import IntroSequence
 # Constants
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 800
-GAME_TITLE = "Alien Invasion"
+GAME_TITLE = "Cosmic Conflict"
 
 def signal_handler(sig, frame):
     """Handle Ctrl+C gracefully"""

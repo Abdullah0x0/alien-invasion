@@ -507,7 +507,7 @@ class IntroSequence:
         # Draw text in aftermath state
         if self.state == "aftermath" and aftermath_elapsed > 2.0:
             # Render text with bright color for high visibility
-            text = self.font.render("Alien Invasion Begins...", True, (255, 255, 0))
+            text = self.font.render("Cosmic Conflict Begins...", True, (255, 255, 0))
             
             # Scale text for animation effect
             if self.text_scale != 1.0:
@@ -551,7 +551,7 @@ class IntroSequence:
         elif elapsed > 15.0:  # Increased from 12.0 to 15.0 seconds, only if not already in aftermath state
             # Force draw the text, regardless of state
             font = pygame.font.Font(None, 100)
-            text = font.render("Alien Invasion Begins...", True, (255, 0, 0))  # Bright red for high visibility
+            text = font.render("Cosmic Conflict Begins...", True, (255, 0, 0))  # Bright red for high visibility
             text_rect = text.get_rect(center=(self.screen_width // 2, self.screen_height // 2))
             
             # Draw black background

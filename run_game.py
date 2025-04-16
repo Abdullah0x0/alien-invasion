@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Alien Invasion - OS Concepts Game
+Cosmic Conflict - OS Concepts Game
 Run this script to start the game.
 """
 
@@ -36,7 +36,7 @@ def run_game():
     
     # Run the game
     try:
-        print("Starting Alien Invasion game...")
+        print("Starting Cosmic Conflict game...")
         game_path = os.path.join(script_dir, "src", "main.py")
         os.environ['PYTHONPATH'] = script_dir  # Make imports work
         subprocess.call([sys.executable, game_path])

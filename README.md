@@ -1,4 +1,4 @@
-# Alien Invasion - OS Concepts Game
+# Cosmic Conflict - OS Concepts Game
 
 A platform combat game where players fight against waves of aliens, demonstrating practical implementations of operating system concepts through game mechanics.
 

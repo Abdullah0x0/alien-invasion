@@ -60,7 +60,7 @@ class RendererProcess:
         
         # Initialize pygame and create window
         self.screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Alien Invasion")
+        pygame.display.set_caption("Cosmic Conflict")
         self.clock = pygame.time.Clock()
         
         # Initialize pygame mixer for sound
