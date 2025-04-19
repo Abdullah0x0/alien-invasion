@@ -50,7 +50,7 @@
 
 Watch a short gameplay showcase of *Cosmic Conflict* in action:
 
-📺 [Demo Video on YouTube](https://www.youtube.com/your-demo-link-here)
+📺 [Demo Video on YouTube](https://www.youtube.com/watch?v=seFcBxCVnWg)
 
 ## OS Concepts Implemented
 
