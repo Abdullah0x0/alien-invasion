@@ -1,7 +1,8 @@
 # Cosmic Conflict - OS Concepts Game
 
-A platform combat game where players fight against waves of aliens, demonstrating practical implementations of operating system concepts through game mechanics.
+## Game Summary
 
+*Cosmic Conflict* is a platform combat game where players face waves of alien enemies while embodying real-world OS principles through gameplay. Every mechanic—from enemy spawning to power-up management—is backed by multiprocessing, threading, IPC, and synchronization, giving players an interactive lens into how operating systems function under the hood.
 
 ## Gameplay Preview
 
@@ -45,7 +46,11 @@ A platform combat game where players fight against waves of aliens, demonstratin
   <strong><em>Game Over Screen – Final stats and reset prompt</em></strong>
 </p>
 
+## Demo Video
 
+Watch a short gameplay showcase of *Cosmic Conflict* in action:
+
+📺 [Demo Video on YouTube](https://www.youtube.com/your-demo-link-here)
 
 ## OS Concepts Implemented
 
@@ -162,16 +167,6 @@ Main Process
    python run_game.py
    ```
 
-## Controls
-
-- **Arrow Keys** - Move the player and Jump
-- **Z** - Fire primary weapon
-- **X** - Fire secondary weapon
-- **ESC** - Pause game
-- **P** - Toggle process info display
-- **D** - Toggle platform reachability debug visualization
-- **Q** - Quit game
-
 ## Game Features
 
 - Wave-based combat system with increasing difficulty
@@ -280,18 +275,18 @@ The game implements a smart platform generation algorithm that ensures platforms
 3. Ensures adequate horizontal spacing for effective gameplay
 4. Provides debug visualization (press 'D' in-game) to show platform reachability
 
-## Development
+## Next Steps and Final Demo Plans
 
-To contribute or modify:
-1. Fork the repository
-2. Create a feature branch
-3. Implement changes with appropriate OS concept usage
-4. Submit a pull request with detailed documentation
+Implementation of lower-level operating system concepts will be explored, both by introducing new mechanisms and by refactoring existing features. Abstractions such as Python’s `Queue` and `multiprocessing` will be reconsidered in favor of lower-level alternatives including shared memory segments, pipes, and POSIX-like signals. Development will proceed iteratively, allowing each stage of implementation to inform subsequent strategies and objectives for deeper systems-level integration.
 
-## Educational Value
+- 🎯 **Leaderboard System**  
+  Add a persistent leaderboard using shared memory to store high scores across sessions.
 
-This project demonstrates practical applications of operating system concepts in a real-world scenario, making it valuable for:
-- Understanding process/thread management
-- Learning synchronization techniques
-- Practicing IPC implementations
-- Studying resource management strategies
+- ⚙️ **Lower-Level OS Features**  
+  Addressing feedback to implement deeper OS integration:
+  - Replace high-level Python multiprocessing with `multiprocessing.shared_memory` or `ctypes` for manual memory mapping.
+  - Implement POSIX-like signaling using Python's `signal` module (e.g., `SIGUSR1`, `SIGTERM`) to control process behaviors.
+  - Swap `Queue`-based IPC with raw pipes or sockets to reflect true message passing.
+  - Other updates will continue through the development process.
+
+These additions will be showcased in the final demo with the developer overlay enabled for live system behavior introspection.
