@@ -54,10 +54,23 @@ Watch a short gameplay showcase of *Cosmic Conflict* in action:
 
 ## OS Concepts Implemented
 
+> **Note on Implementation Level**: The current implementation utilizes Python's high-level abstractions for operating system concepts. We are actively working to transition these implementations to more low-level approaches that better demonstrate the underlying operating system principles. As such, some features may be added, removed, or modified as we refine the implementation.
+
 1. **Process Management**
    - Separate processes for game logic and rendering using Python's multiprocessing
    - Process synchronization through shared memory
    - Proper process initialization and termination handling
+
+&nbsp;
+
+<p align="center">
+  <img width="618" alt="image" src="https://github.com/user-attachments/assets/4587e65a-ed2b-497e-81f8-19fd75f47cda" />
+
+<br>
+  <strong><em>Process creation and management using Python's multiprocessing module, demonstrating proper process initialization and daemon process handling.</em></strong>
+</p>
+
+&nbsp;
 
 2. **Thread Management**
    - Multiple concurrent threads handling:
@@ -68,6 +81,16 @@ Watch a short gameplay showcase of *Cosmic Conflict* in action:
    - Daemon threads for automatic cleanup
    - Thread-safe resource access
 
+&nbsp;
+  
+<p align="center">
+  <img width="489" alt="image" src="https://github.com/user-attachments/assets/ee595ecc-e568-4473-82c6-a74a9638478f" />
+<br>
+  <strong><em>Thread management implementation showing daemon thread creation for enemy spawning and power-up generation.</em></strong>
+</p>
+
+&nbsp;
+
 3. **Synchronization Mechanisms**
    - Mutex locks for critical sections:
      - Entity management (`entities_lock`)
@@ -75,6 +98,16 @@ Watch a short gameplay showcase of *Cosmic Conflict* in action:
      - Shared resource access (`player_score_lock`, etc.)
    - Context managers for proper lock handling
    - Race condition prevention
+
+&nbsp;
+  
+<p align="center">
+  <img width="495" alt="image" src="https://github.com/user-attachments/assets/8a283730-b99c-496b-adef-728d5fd672e7" />
+<br>
+  <strong><em>Synchronization implementation using mutex locks for thread-safe entity creation and management.</em></strong>
+</p>
+
+&nbsp;
 
 4. **Inter-Process Communication (IPC)**
    - Shared Memory:
@@ -85,6 +118,16 @@ Watch a short gameplay showcase of *Cosmic Conflict* in action:
      - Input event handling
      - Game state updates
      - Entity synchronization
+
+&nbsp;
+    
+<p align="center">
+  <img width="529" alt="image" src="https://github.com/user-attachments/assets/dd0c0369-b27f-47ce-a65b-a62c0b0328e4" />
+<br>
+  <strong><em>Inter-process communication implementation using message queues for input handling and game state updates.</em></strong>
+</p>
+
+&nbsp;
 
 5. **Resource Management**
    - Memory allocation and deallocation
@@ -105,6 +148,18 @@ Watch a short gameplay showcase of *Cosmic Conflict* in action:
    - Clean resource release during abnormal termination
    - Preventing orphaned processes and memory leaks
 
+&nbsp;
+  
+<p align="center">
+  <img width="351" alt="image" src="https://github.com/user-attachments/assets/dba67b35-255e-4b32-b4f4-9dc0a0d2e419" />
+
+<br>
+  <strong><em>Signal handling implementation showing graceful shutdown handling for SIGINT (Ctrl+C). </em></strong>
+</p>
+
+&nbsp;
+
+
 8. **Context-Based Lock Management**
    - Advanced lock acquisition using context managers (with statements)
    - Automatic lock release even during exceptions
@@ -117,13 +172,13 @@ Watch a short gameplay showcase of *Cosmic Conflict* in action:
    - Background vs. foreground process handling
    - Resource allocation based on process importance
 
-10. **Event-based Programming Model**
+11. **Event-based Programming Model**
     - Event-driven architecture for game interactivity
     - Polling and interrupt-based event handling
     - Event queues and dispatching systems
     - Asynchronous event processing similar to OS interrupt handling
 
-11. **Advanced Queue-based Message Passing**
+12. **Advanced Queue-based Message Passing**
     - Structured inter-process message protocols
     - Priority-based message queue processing
     - Non-blocking message handling
