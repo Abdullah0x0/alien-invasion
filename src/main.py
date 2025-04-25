@@ -5,7 +5,15 @@ import time
 import signal
 import pygame
 import multiprocessing as mp
-from multiprocessing import Process, Queue, Value, Lock, Array
+from multiprocessing import Queue, Value, Lock, Array
+
+# Import our custom Process class or fall back to multiprocessing.Process
+try:
+    from process_bridge import Process
+    print("Using custom Process implementation with system calls")
+except ImportError:
+    from multiprocessing import Process
+    print("Using standard multiprocessing.Process")
 
 # Local imports
 from game_logic import GameLogicProcess
